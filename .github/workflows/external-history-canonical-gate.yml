@@ -1,0 +1,51 @@
+name: external-history-canonical-gate
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tools/audit_canonical_external_chain.py'
+      - 'tools/finalize_external_data_gate.py'
+      - 'research/external_validation_data_method_amendment_2026-09-12.md'
+      - '.github/workflows/external-history-canonical-gate.yml'
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  canonical-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pandas numpy
+      - name: Reuse frozen checksum-audited external-history artifact
+        run: |
+          mkdir -p external_history_2017_2022
+          gh run download 34676847520 -n rt-external-history-2017-2022 -D external_history_2017_2022
+      - name: Audit canonical 15m chain and freeze feature validity mask
+        run: python tools/audit_canonical_external_chain.py --root external_history_2017_2022
+      - name: Apply amended final data gate
+        run: python tools/finalize_external_data_gate.py --root external_history_2017_2022
+      - name: Print gate evidence
+        if: always()
+        run: |
+          cat external_history_2017_2022/CANONICAL_CHAIN_AUDIT.json || true
+          cat external_history_2017_2022/canonical_feature_window_audit.csv || true
+          cat external_history_2017_2022/canonical_invalid_feature_windows.csv || true
+          cat external_history_2017_2022/binance_native_parity.csv || true
+          cat external_history_2017_2022/FINAL_DATA_GATE.json || true
+      - name: Upload canonical-gated dataset and validity ledger
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rt-external-history-2017-2022-canonical-gated
+          path: external_history_2017_2022
+          retention-days: 14
+          compression-level: 6
