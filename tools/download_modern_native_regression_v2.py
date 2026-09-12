@@ -10,6 +10,9 @@ DAILY = 'https://data.binance.vision/data/spot/daily/klines'
 COLS = ['open_time_ms','open','high','low','close','volume','close_time_ms','quote_asset_volume','number_of_trades','taker_buy_base_asset_volume','taker_buy_quote_asset_volume','ignore']
 TFSEC = {'30m':1800,'1h':3600,'2h':7200,'4h':14400,'8h':28800,'12h':43200,'1d':86400,'3d':259200,'1w':604800}
 INTERVALS = list(TFSEC)
+# Binance Spot public archives use milliseconds before 2025-01-01 and
+# microseconds from 2025-01-01 onward. Magnitude cleanly separates the two.
+MICROSECOND_EPOCH_THRESHOLD = 10**14
 
 
 def sha(b: bytes) -> str:
@@ -24,6 +27,18 @@ def get(url: str) -> bytes:
 
 def checksum(text: str) -> str:
     return text.strip().splitlines()[0].replace('*',' ').split()[0].lower()
+
+
+def parse_spot_epoch(values: pd.Series) -> pd.Series:
+    """Parse mixed Binance Spot archive epochs without changing bar semantics."""
+    x = pd.to_numeric(values, errors='raise').astype('int64')
+    out = pd.Series(pd.NaT, index=x.index, dtype='datetime64[ns, UTC]')
+    us = x.abs() >= MICROSECOND_EPOCH_THRESHOLD
+    if (~us).any():
+        out.loc[~us] = pd.to_datetime(x.loc[~us], unit='ms', utc=True)
+    if us.any():
+        out.loc[us] = pd.to_datetime(x.loc[us], unit='us', utc=True)
+    return out
 
 
 def read_zip(blob: bytes) -> pd.DataFrame:
@@ -71,6 +86,8 @@ def main():
     ap.add_argument('--daily-start',default='2026-01-01')
     ap.add_argument('--daily-end',default='2026-01-10')
     a=ap.parse_args(); out=Path(a.out); (out/'binance').mkdir(parents=True,exist_ok=True)
+    expected_start=pd.Timestamp(f'{a.monthly_start}-01',tz='UTC')
+    expected_end_exclusive=pd.Timestamp(a.daily_end,tz='UTC')+pd.Timedelta(days=1)
     manifest=[]; audits=[]
     for tf in INTERVALS:
         frames=[]
@@ -88,18 +105,21 @@ def main():
                     continue
                 raise
             frames.append(d); manifest.append({'source':'daily','interval':tf,'period':ds,'url':url,'sha256':h,'rows':len(d),'status':'ok'})
-        d=pd.concat(frames,ignore_index=True).sort_values('open_time_ms').drop_duplicates('open_time_ms',keep='last').reset_index(drop=True)
-        d['open_time']=pd.to_datetime(d.open_time_ms,unit='ms',utc=True)
+        d=pd.concat(frames,ignore_index=True)
+        d['open_time']=parse_spot_epoch(d.open_time_ms)
+        d=d.sort_values('open_time').drop_duplicates('open_time',keep='last').reset_index(drop=True)
         d['availability_time']=d.open_time+pd.to_timedelta(TFSEC[tf],unit='s')
         q=d[['open_time','availability_time','open','high','low','close','volume','number_of_trades']]
         p=out/'binance'/f'BTCUSDT_{tf}_2020-01_to_2026-01-10.csv.gz'; q.to_csv(p,index=False,compression='gzip')
-        t=q.open_time; env=((q.high<q[['open','close','low']].max(axis=1))|(q.low>q[['open','close','high']].min(axis=1)))
-        audits.append({'interval':tf,'rows':len(q),'start':str(t.iloc[0]),'end':str(t.iloc[-1]),'duplicate_timestamps':int(t.duplicated().sum()),'monotonic':bool(t.is_monotonic_increasing),'ohlc_envelope_failures':int(env.sum()),'normalized_sha256':sha(p.read_bytes())})
+        t=q.open_time
+        env=((q.high<q[['open','close','low']].max(axis=1))|(q.low>q[['open','close','high']].min(axis=1)))
+        out_of_range=(t<expected_start)|(t>=expected_end_exclusive)
+        audits.append({'interval':tf,'rows':len(q),'start':str(t.iloc[0]),'end':str(t.iloc[-1]),'duplicate_timestamps':int(t.duplicated().sum()),'monotonic':bool(t.is_monotonic_increasing),'ohlc_envelope_failures':int(env.sum()),'timestamp_out_of_range':int(out_of_range.sum()),'normalized_sha256':sha(p.read_bytes())})
         print(tf,len(q),t.iloc[0],t.iloc[-1],flush=True)
     pd.DataFrame(manifest).to_csv(out/'source_manifest.csv',index=False)
     ad=pd.DataFrame(audits); ad.to_csv(out/'integrity.csv',index=False)
-    bad=ad[(ad.duplicate_timestamps!=0)|(~ad.monotonic)|(ad.ohlc_envelope_failures!=0)]
-    summary={'status':'PASS' if bad.empty else 'FAIL','purpose':'PREHOLDOUT_MODERN_NATIVE_ADAPTER_REGRESSION_DATA_ONLY','warmup_start':'2020-01-01','comparison_start':'2023-06-01','comparison_cutoff':'2026-01-10T07:00:00Z','performance_evaluation_allowed':False,'intervals':INTERVALS,'failed_series':int(len(bad)),'generated_at_utc':datetime.now(timezone.utc).isoformat()}
+    bad=ad[(ad.duplicate_timestamps!=0)|(~ad.monotonic)|(ad.ohlc_envelope_failures!=0)|(ad.timestamp_out_of_range!=0)]
+    summary={'status':'PASS' if bad.empty else 'FAIL','purpose':'PREHOLDOUT_MODERN_NATIVE_ADAPTER_REGRESSION_DATA_ONLY','warmup_start':'2020-01-01','comparison_start':'2023-06-01','comparison_cutoff':'2026-01-10T07:00:00Z','performance_evaluation_allowed':False,'intervals':INTERVALS,'failed_series':int(len(bad)),'timestamp_unit_rule':'Binance Spot archive epoch magnitude: milliseconds below 1e14, microseconds at/above 1e14','generated_at_utc':datetime.now(timezone.utc).isoformat()}
     (out/'DATA_GATE.json').write_text(json.dumps(summary,indent=2),encoding='utf-8')
     print(json.dumps(summary,indent=2),flush=True)
     if not bad.empty: raise SystemExit('modern native data integrity failed')
