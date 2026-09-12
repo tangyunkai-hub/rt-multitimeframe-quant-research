@@ -38,7 +38,7 @@ This path is intentionally implementation-compatible. It is **not** replaced by 
 
 The frozen implementation used separate native-style higher-overlay semantics. Those are reconstructed externally without changing their role:
 
-- **W7 3D overlay:** reconstruct TradingView-compatible 3D calendar bars causally from checksum-verified Binance 15m OPEN timestamps, with each calendar year starting a new Jan-1 + 3-day sequence. Modern saved TradingView evidence showed zero OHLC and TDO/SSL state/event mismatches on the comparison sample.
+- **W7 3D overlay:** reconstruct TradingView-compatible 3D calendar bars causally from checksum-verified Binance 15m OPEN timestamps, with each calendar year starting a new Jan-1 + 3-day sequence. At a year boundary the final calendar-year bucket may contain fewer than three actual days, but its availability label remains `bucket_open + 3d`, exactly matching the consumed `load_tv_native(..., '3d')` timing convention. This deliberately preserves the old implementation rather than replacing it with a cleaner actual-close timestamp. Modern saved TradingView evidence and the final state/action regression both matched after this convention was applied.
 - **W7 weekly process:** reconstruct Monday-open crypto weeks `[Mon 00:00, next Mon 00:00)` from Binance 15m OPEN timestamps and label availability at the next Monday. Modern saved TradingView evidence showed exact weekly TDO parity on the audited sample.
 - **W3 12h / W8 1d Bitstamp state source:** use official Bitstamp API OHLC and the frozen indicator implementation. On the modern pre-holdout overlap (2023-06-01 through 2026-01-10 07:00 UTC), official API versus saved native TradingView produced zero authority-event/state mismatches for 12h SSL state/up/down and 1d TDO GC/DC/oversold state after causal warm-up.
 
@@ -53,6 +53,24 @@ The consumed Candidate A/B implementation already had two distinct 3D roles:
 
 v3 preserves this distinction exactly. Collapsing them into one "cleaner" 3D clock would change the model and would therefore define a new candidate, not validate Candidate B.
 
+## Modern semantic regression result
+
+With the rules above frozen, the implementation-compatible adapter was compared over `2023-06-01` through `2026-01-10 07:00 UTC` on 45,807 30-minute campaign timestamps.
+
+Authority-critical mismatch counts were all zero for:
+
+- Major direction and Major-at-risk state;
+- core side, local/combined risk, reduce and hedge states;
+- re-entry watch, W7 re-entry armed state and weekly process state;
+- probe events, full campaign-state labels and executable actions;
+- W3 12h SSL state/up/down;
+- W8 1d TDO dead/golden-cross/oversold state and hedge-on/off;
+- W7 3d TDO dead/golden-cross and W7 exit.
+
+Invariant failures: **0**.
+
+Therefore the v3 adapter status is `MODERN_SEMANTIC_REGRESSION_PASS`.
+
 ## Anti-overfit lock
 
 - No 2017–2022 BTC or ETH performance result may alter this adapter, Candidate B semantics, thresholds, costs, sizing, or evaluation criteria.
@@ -62,4 +80,4 @@ v3 preserves this distinction exactly. Collapsing them into one "cleaner" 3D clo
 
 ## Eligibility consequence
 
-External performance remains blocked until the implementation-compatible adapter itself passes its modern-sample state/action regression and invariant audit. Only then may the frozen BTC 2017–2022 Candidate A/B evaluation run, followed by the separately frozen ETH replication.
+The implementation-compatible adapter has now passed its modern-sample state/action regression and invariant audit. The frozen BTC 2017–2022 Candidate A/B external evaluation is therefore eligible to run for the first time, followed by the separately frozen ETH replication. Every result remains `EXTERNAL_HISTORICAL_VALIDATION_NOT_PROSPECTIVE`.
