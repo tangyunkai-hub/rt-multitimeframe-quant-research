@@ -7,7 +7,10 @@ import json
 import os
 from typing import Any
 
-from .runner import PaperState, process_bar
+from .runner import PaperState, canonical_paper_bar, process_bar
+
+
+PAPER_JOURNAL_SCHEMA_VERSION = 1
 
 
 class JournalIntegrityError(RuntimeError):
@@ -20,10 +23,6 @@ def _canonical_json(value: Any) -> str:
 
 def _sha256(value: Any) -> str:
     return hashlib.sha256(_canonical_json(value).encode("utf-8")).hexdigest()
-
-
-def _canonical_bar(row: dict) -> dict:
-    return {k: row[k] for k in ("timestamp", "open", "close", "target_exposure")}
 
 
 def _record_hash(record_without_hash: dict) -> str:
@@ -52,6 +51,10 @@ def replay_journal(path: str | Path) -> PaperState:
     state = PaperState()
     previous_record_hash = None
     for expected_seq, record in enumerate(_read_records(path), 1):
+        if record.get("schema_version") != PAPER_JOURNAL_SCHEMA_VERSION:
+            raise JournalIntegrityError(
+                f"unsupported journal schema at seq {expected_seq}; versioned replay required"
+            )
         actual = dict(record)
         stored_record_hash = actual.pop("record_hash", None)
         if stored_record_hash is None or _record_hash(actual) != stored_record_hash:
@@ -62,13 +65,18 @@ def replay_journal(path: str | Path) -> PaperState:
             raise JournalIntegrityError(f"hash-chain mismatch at seq {expected_seq}")
         if record.get("state_before_hash") != state.digest():
             raise JournalIntegrityError(f"state-before mismatch at seq {expected_seq}")
+
         row = record.get("bar")
-        if not isinstance(row, dict) or record.get("bar_hash") != _sha256(_canonical_bar(row)):
+        canonical_bar = canonical_paper_bar(row) if isinstance(row, dict) else None
+        if canonical_bar is None or row != canonical_bar:
+            raise JournalIntegrityError(f"non-canonical bar payload at seq {expected_seq}")
+        if record.get("bar_hash") != _sha256(canonical_bar):
             raise JournalIntegrityError(f"bar hash mismatch at seq {expected_seq}")
+
         costs = record.get("execution", {})
         new_state, action = process_bar(
             state,
-            row,
+            canonical_bar,
             fee_bps_one_way=float(costs.get("fee_bps_one_way", 7.0)),
             slippage_bps_one_way=float(costs.get("slippage_bps_one_way", 0.0)),
         )
@@ -98,17 +106,18 @@ def process_and_append(
     if recovered != state:
         raise JournalIntegrityError("supplied state does not match journal-recovered state")
 
+    canonical_bar = canonical_paper_bar(row)
     new_state, action = process_bar(
         state,
-        row,
+        canonical_bar,
         fee_bps_one_way=fee_bps_one_way,
         slippage_bps_one_way=slippage_bps_one_way,
     )
     if action.get("status") == "IDEMPOTENT_NOOP":
         return new_state, action
 
-    canonical_bar = _canonical_bar(row)
     record = {
+        "schema_version": PAPER_JOURNAL_SCHEMA_VERSION,
         "seq": len(records) + 1,
         "previous_record_hash": records[-1]["record_hash"] if records else None,
         "bar": canonical_bar,
