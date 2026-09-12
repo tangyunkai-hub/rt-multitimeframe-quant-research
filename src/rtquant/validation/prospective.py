@@ -3,8 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 import pandas as pd
 
-from .paired import evaluate_paired_divergence
-
 
 CANDIDATE_B_FREEZE_UTC = pd.Timestamp("2026-09-12T02:00:00Z")
 
@@ -105,24 +103,24 @@ def assess_candidate_b_information_floor(
         segments_met=segments_met,
         epochs_met=epochs_met,
         performance_release_allowed=eligible,
-        status="ELIGIBLE_FOR_FROZEN_JUDGEMENT" if eligible else "INSUFFICIENT_FORWARD_EVIDENCE",
+        status="ELIGIBLE_FOR_FROZEN_EVALUATOR" if eligible else "INSUFFICIENT_FORWARD_EVIDENCE",
     )
 
 
-def evaluate_candidate_b_prospectively(
+def prospective_release_gate(
     df: pd.DataFrame,
     *,
     freeze_boundary=CANDIDATE_B_FREEZE_UTC,
-    round_trip_bps: float = 14.0,
     min_forward_days: int = 180,
     min_divergence_segments: int = 6,
     min_major_bear_epochs: int = 3,
 ) -> dict:
-    """Release paired performance only after the preregistered information floor.
+    """Return information-floor status without substituting a public evaluator.
 
-    Before eligibility, the return object contains counts/status only and does not
-    call the paired performance evaluator.  This is an anti-optional-stopping guard,
-    not evidence that the eventual result will be favorable.
+    Once eligible, callers may hand the exact same frozen forward pool to the
+    separately frozen private v0.24 evaluator.  This public helper intentionally
+    does not compute paired returns because the simplified public-safe evaluator is
+    not the authority for the private confirmatory protocol.
     """
     status = assess_candidate_b_information_floor(
         df,
@@ -131,15 +129,12 @@ def evaluate_candidate_b_prospectively(
         min_divergence_segments=min_divergence_segments,
         min_major_bear_epochs=min_major_bear_epochs,
     )
-    out = {"information_floor": status.to_dict(), "performance": None}
-    if not status.performance_release_allowed:
-        return out
-
-    req = {"close"}
-    missing = req - set(df.columns)
-    if missing:
-        raise ValueError(f"missing columns required after evidence floor: {sorted(missing)}")
-    x = _validated_forward_frame(df, freeze_boundary)
-    performance = evaluate_paired_divergence(x, round_trip_bps=round_trip_bps)
-    out["performance"] = performance
-    return out
+    return {
+        "information_floor": status.to_dict(),
+        "performance": None,
+        "next_action": (
+            "RUN_SEPARATELY_FROZEN_PRIVATE_V024_EVALUATOR"
+            if status.performance_release_allowed
+            else "KEEP_PERFORMANCE_EMBARGOED"
+        ),
+    }
