@@ -7,6 +7,14 @@ on:
         description: 'Inclusive UTC source day YYYY-MM-DD; blank = yesterday UTC'
         required: false
         type: string
+      mode:
+        description: 'monitor = bounded overlap; full = complete frozen-forward rebuild'
+        required: false
+        default: monitor
+        type: choice
+        options:
+          - monitor
+          - full
   schedule:
     - cron: '25 3 * * *'
   push:
@@ -30,7 +38,11 @@ jobs:
       - name: Collect checksum-verified post-freeze native data
         shell: bash
         run: |
-          ARGS=(--out forward_native_data)
+          MODE="${{ inputs.mode }}"
+          if [ -z "$MODE" ]; then
+            MODE=monitor
+          fi
+          ARGS=(--out forward_native_data --mode "$MODE")
           if [ -n "${{ inputs.end_date }}" ]; then
             ARGS+=(--end-date "${{ inputs.end_date }}")
           fi
@@ -40,6 +52,34 @@ jobs:
         run: |
           cat forward_native_data/DATA_GATE.json || true
           cat forward_native_data/integrity.csv || true
+      - name: Enforce forward data-only gate
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          gate_path = Path("forward_native_data/DATA_GATE.json")
+          if not gate_path.exists():
+              raise SystemExit("DATA_GATE.json missing; collector did not produce an auditable gate")
+
+          gate = json.loads(gate_path.read_text(encoding="utf-8"))
+          allowed = {
+              "PASS",
+              "PASS_WITH_EXPECTED_EARLY_WAITING_INTERVALS",
+              "WAITING_NO_COMPLETED_POST_FREEZE_UTC_DAY",
+              "WAITING_SOURCE_ARCHIVE_PUBLICATION",
+          }
+          status = gate.get("status")
+          if status not in allowed:
+              raise SystemExit(f"forward data-only gate rejected status: {status!r}")
+          if gate.get("performance_evaluation_allowed") is not False:
+              raise SystemExit("forward collector must keep performance evaluation embargoed")
+          if gate.get("candidate_b_judgement_allowed") is not False:
+              raise SystemExit("forward collector must keep Candidate B judgement embargoed")
+          print(f"forward data-only gate accepted: {status}")
+          PY
       - name: Upload forward data-only artifact
         if: always()
         uses: actions/upload-artifact@v4
