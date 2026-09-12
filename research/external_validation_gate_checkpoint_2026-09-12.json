@@ -1,7 +1,7 @@
 {
   "date": "2026-09-12",
   "classification": "EXTERNAL_HISTORICAL_VALIDATION_NOT_PROSPECTIVE",
-  "performance_read_before_checkpoint": false,
+  "performance_read_before_protocol_freeze": false,
   "v1_cross_granularity_exact_reconstruction": "FAIL_PRESERVED",
   "native_timeframe_v2": {
     "source_integrity": "PASS",
@@ -14,15 +14,6 @@
     "status": "PASS",
     "note": "Binance Spot archive timestamp unit switch for 2025+ is handled and source-period bounds are hard-gated."
   },
-  "bitstamp_modern_state_source": {
-    "run_id": 34697817692,
-    "artifact_id": 10299262906,
-    "artifact_sha256": "9ad5e23b63596ec650e29def7010f2916c62d99474ed0482b141450dd7fe7c29",
-    "data_gate": "PASS",
-    "comparison_window": "2023-06-01 through 2026-01-10T07:00:00Z for authority-state parity",
-    "12h_ssl_state_up_down_mismatches": 0,
-    "1d_tdo_gc_dc_oversold_mismatches": 0
-  },
   "implementation_compatibility_v3": {
     "status": "MODERN_SEMANTIC_REGRESSION_PASS",
     "comparison_start": "2023-06-01T00:00:00Z",
@@ -33,5 +24,55 @@
     "performance_evaluation_eligible": true,
     "adapter_document": "research/external_validation_implementation_compatibility_v3_2026-09-12.md"
   },
-  "next_action": "Run frozen BTC 2017-2022 Candidate A versus Candidate B through implementation-compatibility v3; compute paired divergence segments, Major Bear epoch aggregation, leave-one-epoch-out, Long/Short campaign attribution and invariants; do not tune from results."
+  "evaluation_protocol": {
+    "status": "FROZEN_BEFORE_EXTERNAL_PERFORMANCE",
+    "document": "research/external_validation_evaluation_protocol_2026-09-12.md",
+    "primary_cost_round_trip_bps": 14,
+    "slippage_stress_one_way_bps": [0, 2, 5]
+  },
+  "btc_2017_2022": {
+    "status": "COMPLETE_VALID_EXTERNAL_HISTORICAL_EVALUATION",
+    "invariant_failures": 0,
+    "divergence_segments": 26,
+    "major_bear_divergence_epochs": 3,
+    "epochs_favoring_candidate_b": 1,
+    "total_paired_delta_log": -0.1700545940359342,
+    "mechanism_judgement": "ADVERSE_EXTERNAL_MECHANISM_EVIDENCE",
+    "loeo_status": "LOEO_CONCENTRATED_OR_SIGN_UNSTABLE"
+  },
+  "eth_2017_2022": {
+    "status": "COMPLETE_VALID_CROSS_ASSET_REPLICATION",
+    "invariant_failures": 0,
+    "divergence_segments": 20,
+    "major_bear_divergence_epochs": 4,
+    "epochs_favoring_candidate_b": 3,
+    "total_paired_delta_log": 0.14815751531313207,
+    "mechanism_judgement": "EXTERNAL_MECHANISM_SUPPORT",
+    "loeo_status": "LOEO_ROBUST_POSITIVE"
+  },
+  "execution_stress": {
+    "status": "COMPLETE",
+    "result": "QUALITATIVE_LABELS_STABLE_AT_0_2_5BP_ONE_WAY_SLIPPAGE",
+    "btc": "ADVERSE_AT_ALL_FROZEN_STRESS_LEVELS",
+    "eth": "SUPPORT_AT_ALL_FROZEN_STRESS_LEVELS"
+  },
+  "statistical_robustness": {
+    "status": "DESCRIPTIVE_ONLY_SMALL_N",
+    "independent_unit": "continuous Major Bear divergence epoch",
+    "btc_two_sided_exact_signflip_p": 0.5,
+    "eth_two_sided_exact_signflip_p": 0.25,
+    "formal_significance_claim": false
+  },
+  "cross_asset_interpretation": "HETEROGENEOUS_BTC_ADVERSE_ETH_SUPPORTIVE_NO_UNIFORM_REPLICATION",
+  "candidate_b_status": "FROZEN_HYPOTHESIS_NOT_VALIDATED",
+  "v024_status": "INSUFFICIENT_FORWARD_EVIDENCE",
+  "validated_alpha_established": false,
+  "small_capital_live_eligible": false,
+  "results_document": "research/external_validation_results_2017_2022_2026-09-12.md",
+  "anti_overfit": "No strategy semantic, threshold, cost, sizing, or adapter change is permitted from these external historical results.",
+  "next_actions": [
+    "Preserve v0.24/v0.25 prospective gates as WAITING/INSUFFICIENT until genuinely post-freeze data arrive.",
+    "Continue non-prospective robustness and engineering work without changing Candidate B: cross-exchange/data-source robustness where causally comparable data are available; CI/reproducibility hardening; portfolio/report updates.",
+    "Do not pool BTC and ETH post hoc into a new confirmatory pass/fail rule."
+  ]
 }
