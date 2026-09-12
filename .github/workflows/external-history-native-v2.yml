@@ -1,0 +1,50 @@
+name: external-history-native-v2
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tools/download_native_signal_timeframes_v2.py'
+      - 'research/external_data_quality_amendment_native_tf_v2_2026-09-12.md'
+      - '.github/workflows/external-history-native-v2.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  collect-native-v2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pandas numpy
+      - name: Reuse checksum-audited run3 base artifact
+        run: |
+          mkdir -p external_history_2017_2022
+          gh run download 34676847520 -n rt-external-history-2017-2022 -D external_history_2017_2022
+      - name: Download all additional official native signal timeframes
+        id: native
+        continue-on-error: true
+        run: python tools/download_native_signal_timeframes_v2.py --root external_history_2017_2022 --start-year 2017 --end-year 2022
+      - name: Print native-v2 data gate
+        if: always()
+        run: |
+          cat external_history_2017_2022/NATIVE_TF_V2_DATA_GATE.json || true
+          cat external_history_2017_2022/NATIVE_TF_V2_INTEGRITY.csv || true
+      - name: Upload native-timeframe v2 dataset
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rt-external-history-2017-2022-native-v2
+          path: external_history_2017_2022
+          retention-days: 14
+          compression-level: 6
+      - name: Enforce native-v2 integrity gate
+        if: steps.native.outcome != 'success'
+        run: exit 1
