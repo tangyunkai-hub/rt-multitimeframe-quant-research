@@ -3,7 +3,7 @@ import pytest
 
 from rtquant.validation import (
     assess_candidate_b_information_floor,
-    evaluate_candidate_b_prospectively,
+    prospective_release_gate,
 )
 
 FREEZE = pd.Timestamp("2026-09-12T02:00:00Z")
@@ -30,11 +30,12 @@ def _frame(*, end_days=200, include_close=True):
 
 def test_pre_floor_report_contains_no_performance_even_without_prices():
     x = _frame(end_days=100, include_close=False)
-    out = evaluate_candidate_b_prospectively(x)
+    out = prospective_release_gate(x)
     status = out["information_floor"]
     assert status["status"] == "INSUFFICIENT_FORWARD_EVIDENCE"
     assert status["performance_release_allowed"] is False
     assert out["performance"] is None
+    assert out["next_action"] == "KEEP_PERFORMANCE_EMBARGOED"
 
 
 def test_floor_requires_duration_segments_and_independent_epochs():
@@ -49,12 +50,13 @@ def test_floor_requires_duration_segments_and_independent_epochs():
     assert status.performance_release_allowed is True
 
 
-def test_eligible_floor_releases_frozen_paired_evaluation():
-    x = _frame(end_days=200)
-    out = evaluate_candidate_b_prospectively(x, round_trip_bps=14.0)
-    assert out["information_floor"]["status"] == "ELIGIBLE_FOR_FROZEN_JUDGEMENT"
-    assert out["performance"] is not None
-    assert len(out["performance"]["segments"]) == 6
+def test_eligible_floor_authorizes_only_frozen_private_evaluator():
+    x = _frame(end_days=200, include_close=False)
+    out = prospective_release_gate(x)
+    assert out["information_floor"]["status"] == "ELIGIBLE_FOR_FROZEN_EVALUATOR"
+    assert out["information_floor"]["performance_release_allowed"] is True
+    assert out["performance"] is None
+    assert out["next_action"] == "RUN_SEPARATELY_FROZEN_PRIVATE_V024_EVALUATOR"
 
 
 def test_at_or_before_freeze_data_is_rejected_not_silently_filtered():
