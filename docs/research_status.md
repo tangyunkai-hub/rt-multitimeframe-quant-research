@@ -13,10 +13,11 @@ This page separates **engineering readiness** from **statistical validation**.
 | Candidate B | Frozen hypothesis | Only genuinely new post-freeze evidence can support/reject it prospectively |
 | Historical external validation | **Complete; heterogeneous** | Immutable as retrospective external evidence: BTC adverse, ETH supportive |
 | Cross-exchange execution robustness | **Complete; venue-consistent** | Separate preregistered signal-source recreation would test a different question |
+| Independent signal-source recreation | **Blocked by exact native coverage** | New suitable provider coverage or a separately preregistered multi-provider design |
 | Candidate B forward evidence | **Insufficient** | ≥180 days + ≥3 independent Bear divergence epochs + ≥6 divergence segments |
 | Long sparse-trend evidence | Insufficient | ≥365 days + ≥6 completed Long campaigns + ≥3 Bull epochs |
-| Risk-capital sizing | Benchmarks frozen, unvalidated | Prospective comparison of fixed policies |
-| Execution realism | Engine built; historical fixed-stress and cross-venue audits complete | Prospective next-open execution evidence |
+| Risk-capital sizing | **Frozen architecture implemented; policies unvalidated** | Prospective side-by-side comparison after Long evidence floor; no historical winner selection |
+| Execution realism | **Engineering hardened; parity-tested** | Prospective next-open execution evidence |
 | Paper shadow | **Engineering hardened, not live** | Sustained deterministic live-shadow operation on genuinely new data |
 | Reproducibility | **Hash/manifest verification hardened** | Any provenance failure reopens the gate |
 | Deployment readiness | **NO** | All relevant statistical, risk, execution, and paper gates must pass |
@@ -60,6 +61,12 @@ A separate protocol was frozen before Coinbase strategy performance was read. Fr
 
 This removes one alternative explanation—single-venue PnL artifacts—but it does not convert old history into prospective confirmation.
 
+## Independent signal-source feasibility
+
+A survey of public exchange-native interval coverage found no surveyed single provider with the full exact native clock set required by the frozen compatibility-v3 state engine, including the critical combination of 2h, 8h, 12h, 3d and 1w bars. Because earlier semantic work showed that lower-timeframe reconstruction can change authority-critical states, the project does **not** silently resample missing clocks and call that independent native-source replication.
+
+Current status: `BLOCKED_NO_SURVEYED_SINGLE_PROVIDER_EXACT_NATIVE_TIMEFRAME_COVERAGE`. A future multi-provider mosaic would be a separate experiment requiring its own source/timeframe map, modern semantic regression, preregistration and freeze before any performance is read.
+
 ## Candidate B confirmatory gate
 
 Formal prospective Candidate B judgement is not allowed before all three conditions are met:
@@ -85,14 +92,44 @@ Long is evaluated independently from Candidate B. Formal Long support requires a
 
 Open Long campaigns may be reported mark-to-date but do not count as completed confirmation evidence.
 
+## v0.26 risk-capital engineering status
+
+The fixed benchmark family remains frozen and unvalidated; no historical winner is selected. The public package now implements only the audit-safe architecture, while exact private benchmark sizing recipes remain outside the public repository.
+
+The implementation enforces:
+
+- the risk layer cannot create exposure from `FLAT`;
+- reduction is applied once, not once per reason;
+- multiple hedge reasons are non-additive and resolve to the maximum authorized fraction rather than a sum;
+- a gross cap proportionally scales already-authorized legs without changing direction permission;
+- `CORE_LONG` defense cannot flip net exposure below zero;
+- the unresolved protective-long mirror for `CORE_SHORT` remains disabled.
+
+This is **engineering readiness only**. P0/P1/P2/P3 remain side-by-side research benchmarks until the v0.25 Long evidence floor is satisfied and the frozen Pareto rule can be applied prospectively.
+
+## v0.27 execution engineering status
+
+The public next-open simulator is now fail-closed and mathematically aligned with the incremental v0.28 paper runner:
+
+- a close-known target cannot earn the same bar's return;
+- old exposure owns the previous-close → next-observed-open gap;
+- the newly filled exposure owns the next-open → close move;
+- gap, transaction-cost and intrabar wealth factors compound sequentially rather than being approximated by addition;
+- duplicate timestamps, invalid timestamps, non-finite inputs, non-positive prices and invalid cost assumptions fail closed;
+- an integration invariant requires v0.27 batch equity and v0.28 incremental paper equity to match bar-by-bar under identical costs.
+
+CI run `34700451444` passed on Python 3.10, 3.11 and 3.12. This does not create prospective execution evidence; it prevents the research and paper layers from drifting into different execution semantics.
+
 ## v0.28 paper-shadow engineering status
 
-The brokerless paper layer now has explicit audit hardening in addition to the original deterministic runner:
+The brokerless paper layer now has explicit audit hardening in addition to the deterministic runner:
 
 - append-only JSONL audit records chained by SHA-256;
+- canonical UTC timestamp and numeric bar identity before hashing;
+- explicit journal schema version;
 - deterministic state recovery from the full journal;
 - bar hash, state-before hash, state-after hash, and record hash verification;
-- idempotent identical-bar retry without duplicate journal records;
+- idempotent equivalent-bar retry without duplicate journal records;
 - hard failure when the same timestamp arrives with changed data, requiring a versioned replay;
 - tamper detection if historical journal bytes or stored state are modified;
 - stale in-memory state cannot append to a journal whose recovered state differs.
@@ -101,7 +138,7 @@ These behaviors are covered by CI across Python 3.10, 3.11, and 3.12. This is **
 
 ## Reproducibility hardening
 
-Run manifests now reject duplicate basename collisions unless an explicit root is supplied to preserve relative paths. A verifier checks both the manifest self-hash and the current input bytes, so altered inputs or altered manifest metadata fail the provenance audit instead of silently passing.
+Run manifests reject duplicate basename collisions unless an explicit root is supplied to preserve relative paths. A verifier checks both the manifest self-hash and the current input bytes, so altered inputs or altered manifest metadata fail the provenance audit instead of silently passing.
 
 ## Research governance rules
 
@@ -111,9 +148,10 @@ Run manifests now reject duplicate basename collisions unless an explicit root i
 - any strategy-defining change creates a new candidate/version and a new freeze boundary;
 - multiple trades or segments inside one regime are not treated as independent replications;
 - confirmed Major direction changes only on an opposite confirmed event; local/provisional evidence may only degrade the regime to `AT_RISK`;
+- risk-policy engineering does not authorize selecting a live policy from consumed historical PnL;
 - engineering test success is necessary but never sufficient for deployment;
 - negative experiments remain in the record.
 
 ## Current one-line conclusion
 
-**Research-only. The frozen holdout failed; external historical evidence is cross-asset heterogeneous but execution-venue robust; Candidate B remains frozen and unvalidated; paper/reproducibility engineering is hardened but not live; deployment is not authorized.**
+**Research-only. The frozen holdout failed; external historical evidence is cross-asset heterogeneous but execution-venue robust; Candidate B remains frozen and unvalidated; v0.26/v0.27/v0.28 engineering is materially hardened while the required prospective evidence remains insufficient; deployment is not authorized.**
