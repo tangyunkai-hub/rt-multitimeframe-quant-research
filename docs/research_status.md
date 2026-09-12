@@ -12,11 +12,13 @@ This page separates **engineering readiness** from **statistical validation**.
 | Frozen holdout | **FAIL** | Immutable result |
 | Candidate B | Frozen hypothesis | Only genuinely new post-freeze evidence can support/reject it prospectively |
 | Historical external validation | **Complete; heterogeneous** | Immutable as retrospective external evidence: BTC adverse, ETH supportive |
+| Cross-exchange execution robustness | **Complete; venue-consistent** | Separate preregistered signal-source recreation would test a different question |
 | Candidate B forward evidence | **Insufficient** | ≥180 days + ≥3 independent Bear divergence epochs + ≥6 divergence segments |
 | Long sparse-trend evidence | Insufficient | ≥365 days + ≥6 completed Long campaigns + ≥3 Bull epochs |
 | Risk-capital sizing | Benchmarks frozen, unvalidated | Prospective comparison of fixed policies |
-| Execution realism | Engine built; historical fixed-stress audit complete | Prospective next-open execution evidence |
-| Paper shadow | Infrastructure built | Sustained deterministic live-shadow operation |
+| Execution realism | Engine built; historical fixed-stress and cross-venue audits complete | Prospective next-open execution evidence |
+| Paper shadow | **Engineering hardened, not live** | Sustained deterministic live-shadow operation on genuinely new data |
+| Reproducibility | **Hash/manifest verification hardened** | Any provenance failure reopens the gate |
 | Deployment readiness | **NO** | All relevant statistical, risk, execution, and paper gates must pass |
 
 ## Frozen negative evidence
@@ -46,6 +48,18 @@ A pre-registered external historical program was frozen before reading Candidate
 
 The cross-asset conclusion is **heterogeneous evidence, not uniform replication**. No post-hoc pooled pass/fail rule is introduced, and Candidate B is not changed from these results.
 
+## Cross-exchange execution robustness — Coinbase
+
+A separate protocol was frozen before Coinbase strategy performance was read. Frozen Candidate A/B state trajectories were held constant; only the execution/PnL venue changed from Binance Spot to Coinbase Exchange 15m candles. Missing venue bars were not synthesized.
+
+- Coinbase data-only integrity gate: **PASS** for BTC-USD and ETH-USD.
+- **BTC:** Candidate B remains `ADVERSE_EXTERNAL_MECHANISM_EVIDENCE`; the locked Binance and Coinbase mechanism signs match at segment and Bear-epoch levels.
+- **ETH:** Candidate B remains `EXTERNAL_MECHANISM_SUPPORT`; the locked Binance and Coinbase mechanism signs also match at segment and Bear-epoch levels.
+- Frozen 7/9/12bp one-way total-cost scenarios do not flip either asset's mechanism label.
+- Result: `CROSS_EXCHANGE_EXECUTION_ROBUSTNESS_NOT_PROSPECTIVE`, with the BTC-adverse / ETH-supportive heterogeneity **execution-venue robust**.
+
+This removes one alternative explanation—single-venue PnL artifacts—but it does not convert old history into prospective confirmation.
+
 ## Candidate B confirmatory gate
 
 Formal prospective Candidate B judgement is not allowed before all three conditions are met:
@@ -71,16 +85,35 @@ Long is evaluated independently from Candidate B. Formal Long support requires a
 
 Open Long campaigns may be reported mark-to-date but do not count as completed confirmation evidence.
 
+## v0.28 paper-shadow engineering status
+
+The brokerless paper layer now has explicit audit hardening in addition to the original deterministic runner:
+
+- append-only JSONL audit records chained by SHA-256;
+- deterministic state recovery from the full journal;
+- bar hash, state-before hash, state-after hash, and record hash verification;
+- idempotent identical-bar retry without duplicate journal records;
+- hard failure when the same timestamp arrives with changed data, requiring a versioned replay;
+- tamper detection if historical journal bytes or stored state are modified;
+- stale in-memory state cannot append to a journal whose recovered state differs.
+
+These behaviors are covered by CI across Python 3.10, 3.11, and 3.12. This is **engineering validation only**; paper-shadow market evidence remains not live.
+
+## Reproducibility hardening
+
+Run manifests now reject duplicate basename collisions unless an explicit root is supplied to preserve relative paths. A verifier checks both the manifest self-hash and the current input bytes, so altered inputs or altered manifest metadata fail the provenance audit instead of silently passing.
+
 ## Research governance rules
 
 - consumed historical data cannot be recycled as Candidate B confirmation;
-- external historical validation cannot be relabeled as forward/prospective evidence;
+- external historical or cross-exchange validation cannot be relabeled as forward/prospective evidence;
 - no threshold is retuned because a historical or forward result looks bad;
 - any strategy-defining change creates a new candidate/version and a new freeze boundary;
 - multiple trades or segments inside one regime are not treated as independent replications;
+- confirmed Major direction changes only on an opposite confirmed event; local/provisional evidence may only degrade the regime to `AT_RISK`;
 - engineering test success is necessary but never sufficient for deployment;
 - negative experiments remain in the record.
 
 ## Current one-line conclusion
 
-**Research-only. The frozen holdout failed; external historical evidence is cross-asset heterogeneous; Candidate B remains frozen and unvalidated; deployment is not authorized.**
+**Research-only. The frozen holdout failed; external historical evidence is cross-asset heterogeneous but execution-venue robust; Candidate B remains frozen and unvalidated; paper/reproducibility engineering is hardened but not live; deployment is not authorized.**
