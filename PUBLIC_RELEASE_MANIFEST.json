@@ -11,6 +11,14 @@
     "eth": "EXTERNAL_MECHANISM_SUPPORT",
     "cross_asset": "HETEROGENEOUS_NO_UNIFORM_REPLICATION"
   },
+  "cross_exchange_execution_robustness": {
+    "classification": "CROSS_EXCHANGE_EXECUTION_ROBUSTNESS_NOT_PROSPECTIVE",
+    "status": "COMPLETE",
+    "venue": "Coinbase Exchange",
+    "btc": "VENUE_CONSISTENT_ADVERSE",
+    "eth": "VENUE_CONSISTENT_SUPPORTIVE",
+    "interpretation": "HETEROGENEOUS_EXTERNAL_MECHANISM_RESULT_IS_EXECUTION_VENUE_ROBUST"
+  },
   "validated_alpha_established": false,
   "small_capital_live_eligible": false,
   "public_scope": "generic event/state research architecture; proprietary signal generation omitted"
