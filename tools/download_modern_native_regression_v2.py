@@ -40,8 +40,7 @@ def read_zip(blob: bytes) -> pd.DataFrame:
 
 
 def verified_archive(url: str):
-    blob=get(url)
-    local=sha(blob)
+    blob=get(url); local=sha(blob)
     remote=checksum(get(url+'.CHECKSUM').decode('utf-8','replace'))
     if local!=remote:
         raise RuntimeError(f'checksum mismatch: {url}')
@@ -65,10 +64,12 @@ def day_iter(start_day: str, end_day: str):
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument('--out',default='modern_native_regression_v2')
-    ap.add_argument('--monthly-start',default='2023-06')
-    ap.add_argument('--monthly-end',default='2026-08')
-    ap.add_argument('--daily-start',default='2026-09-01')
-    ap.add_argument('--daily-end',default='2026-09-11')
+    # 2020-01 is warm-up only. The comparison window remains 2023-06-01 through
+    # the frozen pre-holdout cutoff. This gives weekly/3D indicators ample causal history.
+    ap.add_argument('--monthly-start',default='2020-01')
+    ap.add_argument('--monthly-end',default='2025-12')
+    ap.add_argument('--daily-start',default='2026-01-01')
+    ap.add_argument('--daily-end',default='2026-01-10')
     a=ap.parse_args(); out=Path(a.out); (out/'binance').mkdir(parents=True,exist_ok=True)
     manifest=[]; audits=[]
     for tf in INTERVALS:
@@ -91,14 +92,14 @@ def main():
         d['open_time']=pd.to_datetime(d.open_time_ms,unit='ms',utc=True)
         d['availability_time']=d.open_time+pd.to_timedelta(TFSEC[tf],unit='s')
         q=d[['open_time','availability_time','open','high','low','close','volume','number_of_trades']]
-        p=out/'binance'/f'BTCUSDT_{tf}_2023-06_to_2026-09-11.csv.gz'; q.to_csv(p,index=False,compression='gzip')
+        p=out/'binance'/f'BTCUSDT_{tf}_2020-01_to_2026-01-10.csv.gz'; q.to_csv(p,index=False,compression='gzip')
         t=q.open_time; env=((q.high<q[['open','close','low']].max(axis=1))|(q.low>q[['open','close','high']].min(axis=1)))
         audits.append({'interval':tf,'rows':len(q),'start':str(t.iloc[0]),'end':str(t.iloc[-1]),'duplicate_timestamps':int(t.duplicated().sum()),'monotonic':bool(t.is_monotonic_increasing),'ohlc_envelope_failures':int(env.sum()),'normalized_sha256':sha(p.read_bytes())})
         print(tf,len(q),t.iloc[0],t.iloc[-1],flush=True)
     pd.DataFrame(manifest).to_csv(out/'source_manifest.csv',index=False)
     ad=pd.DataFrame(audits); ad.to_csv(out/'integrity.csv',index=False)
     bad=ad[(ad.duplicate_timestamps!=0)|(~ad.monotonic)|(ad.ohlc_envelope_failures!=0)]
-    summary={'status':'PASS' if bad.empty else 'FAIL','purpose':'MODERN_SAMPLE_NATIVE_ADAPTER_REGRESSION_DATA_ONLY','performance_evaluation_allowed':False,'intervals':INTERVALS,'failed_series':int(len(bad)),'generated_at_utc':datetime.now(timezone.utc).isoformat()}
+    summary={'status':'PASS' if bad.empty else 'FAIL','purpose':'PREHOLDOUT_MODERN_NATIVE_ADAPTER_REGRESSION_DATA_ONLY','warmup_start':'2020-01-01','comparison_start':'2023-06-01','comparison_cutoff':'2026-01-10T07:00:00Z','performance_evaluation_allowed':False,'intervals':INTERVALS,'failed_series':int(len(bad)),'generated_at_utc':datetime.now(timezone.utc).isoformat()}
     (out/'DATA_GATE.json').write_text(json.dumps(summary,indent=2),encoding='utf-8')
     print(json.dumps(summary,indent=2),flush=True)
     if not bad.empty: raise SystemExit('modern native data integrity failed')
