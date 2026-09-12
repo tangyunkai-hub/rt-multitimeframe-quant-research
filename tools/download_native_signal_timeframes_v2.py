@@ -33,6 +33,8 @@ def main():
     args = ap.parse_args()
     root = Path(args.root)
     root.mkdir(parents=True, exist_ok=True)
+    expected_start = pd.Timestamp(f'{args.start_year}-01-01', tz='UTC')
+    expected_end_exclusive = pd.Timestamp(f'{args.end_year + 1}-01-01', tz='UTC')
 
     # Reuse the checksum-verifying Binance downloader, extending only its
     # duration table. This does not alter the failed v1 historical record.
@@ -67,7 +69,7 @@ def main():
                 audits.append({
                     'symbol': symbol, 'interval': interval, 'exists': False,
                     'rows': 0, 'duplicate_timestamps': None, 'monotonic': None,
-                    'ohlc_envelope_failures': None,
+                    'ohlc_envelope_failures': None, 'timestamp_out_of_range': None,
                 })
                 continue
             d = pd.read_csv(p)
@@ -78,6 +80,7 @@ def main():
                 (d.high < d[['open', 'close', 'low']].max(axis=1)) |
                 (d.low > d[['open', 'close', 'high']].min(axis=1))
             )
+            out_of_range = (t < expected_start) | (t >= expected_end_exclusive)
             audits.append({
                 'symbol': symbol,
                 'interval': interval,
@@ -88,6 +91,7 @@ def main():
                 'duplicate_timestamps': int(t.duplicated().sum()),
                 'monotonic': bool(t.is_monotonic_increasing),
                 'ohlc_envelope_failures': int(env.sum()),
+                'timestamp_out_of_range': int(out_of_range.sum()),
                 'sha256': base.sha(p.read_bytes()),
             })
 
@@ -97,7 +101,8 @@ def main():
         (~audit_df.exists.fillna(False)) |
         (audit_df.duplicate_timestamps.fillna(1).astype(int) != 0) |
         (~audit_df.monotonic.fillna(False)) |
-        (audit_df.ohlc_envelope_failures.fillna(1).astype(int) != 0)
+        (audit_df.ohlc_envelope_failures.fillna(1).astype(int) != 0) |
+        (audit_df.timestamp_out_of_range.fillna(1).astype(int) != 0)
     ]
     summary = {
         'status': 'PASS' if bad.empty else 'FAIL',
@@ -110,7 +115,7 @@ def main():
         'next_gate': 'MODERN_SAMPLE_NATIVE_ADAPTER_REGRESSION',
         'generated_at_utc': datetime.now(timezone.utc).isoformat(),
         'anti_overfit_rule': 'No strategy semantic, threshold, cost, or sizing change is permitted from external historical performance.',
-        'note': 'The failed v1 cross-granularity exact-reconstruction gate remains preserved; v2 uses each official native timeframe independently.',
+        'note': 'The failed v1 cross-granularity exact-reconstruction gate remains preserved; v2 uses each official native timeframe independently. Plausible source-period bounds are a hard integrity check.',
     }
     (root / 'NATIVE_TF_V2_DATA_GATE.json').write_text(
         json.dumps(summary, indent=2), encoding='utf-8'
