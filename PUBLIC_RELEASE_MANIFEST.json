@@ -4,6 +4,7 @@
   "holdout_status": "FAIL",
   "candidate_status": "FROZEN_HYPOTHESIS_NOT_VALIDATED",
   "prospective_v024_status": "INSUFFICIENT_FORWARD_EVIDENCE",
+  "prospective_v025_status": "INSUFFICIENT_FORWARD_EVIDENCE",
   "external_historical_validation": {
     "classification": "EXTERNAL_HISTORICAL_VALIDATION_NOT_PROSPECTIVE",
     "status": "COMPLETE",
@@ -19,14 +20,41 @@
     "eth": "VENUE_CONSISTENT_SUPPORTIVE",
     "interpretation": "HETEROGENEOUS_EXTERNAL_MECHANISM_RESULT_IS_EXECUTION_VENUE_ROBUST"
   },
+  "independent_signal_source_replication": {
+    "status": "BLOCKED_NO_SURVEYED_SINGLE_PROVIDER_EXACT_NATIVE_TIMEFRAME_COVERAGE",
+    "arbitrary_resampling_allowed": false,
+    "multi_provider_mosaic_requires_new_preregistration": true
+  },
+  "risk_capital_engineering": {
+    "version": "v0.26",
+    "status": "ARCHITECTURE_IMPLEMENTED_POLICIES_NOT_VALIDATED",
+    "historical_policy_selection_allowed": false,
+    "non_additive_hedge_reasons": true,
+    "long_defense_net_short_flip_allowed": false,
+    "short_protective_long_mirror_enabled": false,
+    "private_exact_benchmark_fractions_public": false
+  },
+  "execution_engineering": {
+    "version": "v0.27",
+    "status": "ENGINEERING_HARDENED_PARITY_TESTED_NOT_PROSPECTIVELY_VALIDATED",
+    "next_observed_open": true,
+    "gap_owned_by_old_exposure": true,
+    "multiplicative_wealth_path": true,
+    "paper_runner_parity_tested": true,
+    "ci_run_id": 34700451444,
+    "ci_python_matrix": ["3.10", "3.11", "3.12"]
+  },
   "paper_shadow_engineering": {
+    "version": "v0.28",
     "status": "ENGINEERING_HARDENED_NOT_LIVE",
     "broker_route": false,
     "append_only_hash_chain": true,
     "deterministic_restart_recovery": true,
     "idempotent_replay": true,
     "changed_same_timestamp_hard_fail": true,
-    "journal_tamper_detection": true
+    "journal_tamper_detection": true,
+    "canonical_bar_identity": true,
+    "journal_schema_version": 1
   },
   "reproducibility": {
     "status": "HASH_MANIFEST_VERIFICATION_HARDENED",
@@ -37,5 +65,5 @@
   },
   "validated_alpha_established": false,
   "small_capital_live_eligible": false,
-  "public_scope": "generic event/state research architecture; proprietary signal generation omitted"
+  "public_scope": "generic event/state research architecture; proprietary signal generation and exact private sizing recipes omitted"
 }
