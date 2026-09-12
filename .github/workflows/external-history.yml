@@ -1,0 +1,37 @@
+name: external-history
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tools/download_external_history.py'
+      - 'research/external_validation_prereg_2026-09-12.md'
+      - '.github/workflows/external-history.yml'
+
+jobs:
+  collect-and-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --upgrade pip
+      - run: pip install pandas numpy
+      - name: Download official 2017-2022 external history and audit it
+        run: python tools/download_external_history.py --out external_history_2017_2022 --start-year 2017 --end-year 2022
+      - name: Show audit summaries
+        if: always()
+        run: |
+          find external_history_2017_2022 -maxdepth 2 -type f -printf '%p %k KB\n' | sort || true
+          cat external_history_2017_2022/DATASET_SUMMARY.json || true
+          cat external_history_2017_2022/binance_native_parity.csv || true
+      - name: Upload audited external-history dataset
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rt-external-history-2017-2022
+          path: external_history_2017_2022
+          retention-days: 14
+          compression-level: 6
