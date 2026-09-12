@@ -46,11 +46,11 @@ def main():
         'strategy_evaluation_eligible': bool(eligible),
         'rule': (
             'Checksum-verified Binance 15m is the canonical execution/feature chain. '
-            'All Binance-derived strategy candles (30m/1h/2h/4h/8h/12h/1d/72h/1w) are built causally '
-            'from canonical 15m. Candles with incomplete counts or off-grid 15m inputs are excluded before '
-            'indicator computation and emit no new signal. Native Binance higher-timeframe parity is diagnostic '
-            'because official old-history products were shown to disagree across intervals. No interpolation or '
-            'synthetic prices are permitted.'
+            'All Binance-derived strategy candles are built causally from observed canonical 15m bars. '
+            'Exchange-maintenance cadence gaps are logged and never filled but do not by themselves invalidate '
+            'the containing aggregate. Candles containing off-grid 15m restart bars are quarantined before '
+            'indicator computation. Native Binance higher-timeframe parity is diagnostic because official old-history '
+            'products were shown to disagree across intervals. No interpolation or synthetic prices are permitted.'
         ),
         'amendment': 'research/external_validation_data_method_amendment_2026-09-12.md',
     }
