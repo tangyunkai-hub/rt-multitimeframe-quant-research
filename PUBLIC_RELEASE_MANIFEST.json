@@ -19,6 +19,22 @@
     "eth": "VENUE_CONSISTENT_SUPPORTIVE",
     "interpretation": "HETEROGENEOUS_EXTERNAL_MECHANISM_RESULT_IS_EXECUTION_VENUE_ROBUST"
   },
+  "paper_shadow_engineering": {
+    "status": "ENGINEERING_HARDENED_NOT_LIVE",
+    "broker_route": false,
+    "append_only_hash_chain": true,
+    "deterministic_restart_recovery": true,
+    "idempotent_replay": true,
+    "changed_same_timestamp_hard_fail": true,
+    "journal_tamper_detection": true
+  },
+  "reproducibility": {
+    "status": "HASH_MANIFEST_VERIFICATION_HARDENED",
+    "duplicate_manifest_keys_fail_closed": true,
+    "manifest_self_hash_verification": true,
+    "input_byte_hash_verification": true,
+    "ci_python_matrix": ["3.10", "3.11", "3.12"]
+  },
   "validated_alpha_established": false,
   "small_capital_live_eligible": false,
   "public_scope": "generic event/state research architecture; proprietary signal generation omitted"
