@@ -95,6 +95,21 @@ def default_end_date() -> date:
     return datetime.now(timezone.utc).date() - timedelta(days=1)
 
 
+def write_waiting_summary(out: Path, symbol: str, end_day: date) -> None:
+    summary = {
+        "status": "WAITING_NO_COMPLETED_POST_FREEZE_UTC_DAY",
+        "classification": "POST_FREEZE_NATIVE_DATA_INTAKE_DATA_ONLY",
+        "symbol": symbol,
+        "freeze_boundary_utc_exclusive": FROZEN_FORWARD_BOUNDARY.isoformat(),
+        "completed_source_day_end_utc": end_day.isoformat(),
+        "performance_evaluation_allowed": False,
+        "candidate_b_judgement_allowed": False,
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+    }
+    (out / "DATA_GATE.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    print(json.dumps(summary, indent=2), flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", default="forward_native_data")
@@ -108,7 +123,8 @@ def main():
 
     end_day = date.fromisoformat(args.end_date) if args.end_date else default_end_date()
     if pd.Timestamp(end_day, tz="UTC") <= FROZEN_FORWARD_BOUNDARY.normalize():
-        raise SystemExit("no completed post-freeze UTC day is available yet")
+        write_waiting_summary(out, args.symbol, end_day)
+        return
 
     # Fetch far enough back to capture a long native bar that opened before the
     # freeze but only became closed-bar available afterward.
@@ -136,7 +152,7 @@ def main():
                         "url": url,
                         "sha256": None,
                         "rows": 0,
-                        "status": "404_NO_BAR_OPEN_ON_DAY",
+                        "status": "404_NO_BAR_OPEN_ON_DAY_OR_ARCHIVE_NOT_PRESENT",
                     })
                     continue
                 raise
@@ -194,14 +210,20 @@ def main():
         eligible.to_csv(path, index=False, compression="gzip")
         normalized_hash = sha256_bytes(path.read_bytes())
 
-        failed = (
-            len(eligible) == 0
-            or duplicate_count != 0
+        hard_failure = (
+            duplicate_count != 0
             or not monotonic
             or int(envelope.sum()) != 0
             or int(nonpositive.sum()) != 0
             or int(availability_violation.sum()) != 0
         )
+        if hard_failure:
+            status = "FAIL"
+        elif len(eligible) == 0:
+            status = "WAITING_FIRST_COMPLETED_NATIVE_BAR"
+        else:
+            status = "PASS"
+
         audits.append({
             "interval": interval,
             "rows": len(normalized),
@@ -215,17 +237,24 @@ def main():
             "nonpositive_price_rows": int(nonpositive.sum()),
             "availability_out_of_range": int(availability_violation.sum()),
             "normalized_sha256": normalized_hash,
-            "status": "FAIL" if failed else "PASS",
+            "status": status,
         })
-        print(interval, len(eligible), flush=True)
+        print(interval, len(eligible), status, flush=True)
 
     pd.DataFrame(manifest).to_csv(out / "source_manifest.csv", index=False)
     audit = pd.DataFrame(audits)
     audit.to_csv(out / "integrity.csv", index=False)
-    failed_series = audit[audit["status"] != "PASS"] if len(audit) else audit
+    hard_failed_series = audit[audit["status"] == "FAIL"] if len(audit) else audit
+    waiting_series = audit[audit["status"].str.startswith("WAITING")] if len(audit) else audit
+
+    complete_shape = len(audit) == len(INTERVALS)
+    if complete_shape and hard_failed_series.empty:
+        overall_status = "PASS" if waiting_series.empty else "PASS_WITH_EXPECTED_EARLY_WAITING_INTERVALS"
+    else:
+        overall_status = "FAIL"
 
     summary = {
-        "status": "PASS" if len(audit) == len(INTERVALS) and failed_series.empty else "FAIL",
+        "status": overall_status,
         "classification": "POST_FREEZE_NATIVE_DATA_INTAKE_DATA_ONLY",
         "symbol": args.symbol,
         "freeze_boundary_utc_exclusive": FROZEN_FORWARD_BOUNDARY.isoformat(),
@@ -236,13 +265,14 @@ def main():
         "performance_evaluation_allowed": False,
         "candidate_b_judgement_allowed": False,
         "intervals": INTERVALS,
-        "failed_series": int(len(failed_series)),
+        "hard_failed_series": int(len(hard_failed_series)),
+        "waiting_series": waiting_series["interval"].tolist() if len(waiting_series) else [],
         "timestamp_unit_rule": "Binance Spot archive epoch magnitude: milliseconds below 1e14, microseconds at/above 1e14",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
     }
     (out / "DATA_GATE.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(json.dumps(summary, indent=2), flush=True)
-    if summary["status"] != "PASS":
+    if overall_status == "FAIL":
         raise SystemExit("post-freeze native data integrity gate failed")
 
 
