@@ -7,9 +7,28 @@ from pathlib import Path
 
 import pandas as pd
 
-EXPECTED = {"2h": 8, "8h": 32, "72h": 288}
-FREQ = {"2h": pd.Timedelta(hours=2), "8h": pd.Timedelta(hours=8), "72h": pd.Timedelta(hours=72)}
-OHLC = ["open", "high", "low", "close"]
+EXPECTED = {
+    "30m": 2,
+    "1h": 4,
+    "2h": 8,
+    "4h": 16,
+    "8h": 32,
+    "12h": 48,
+    "1d": 96,
+    "72h": 288,
+    "1w": 672,
+}
+FREQ = {
+    "30m": pd.Timedelta(minutes=30),
+    "1h": pd.Timedelta(hours=1),
+    "2h": pd.Timedelta(hours=2),
+    "4h": pd.Timedelta(hours=4),
+    "8h": pd.Timedelta(hours=8),
+    "12h": pd.Timedelta(hours=12),
+    "1d": pd.Timedelta(days=1),
+    "72h": pd.Timedelta(hours=72),
+    "1w": pd.Timedelta(days=7),
+}
 
 
 def truthy(v):
@@ -36,7 +55,6 @@ def load_csv(path: Path) -> pd.DataFrame:
 
 
 def grid_aligned_15m(ts: pd.Series) -> pd.Series:
-    # UTC timestamps exactly on a 15-minute boundary.
     ns = ts.astype("int64")
     step = 15 * 60 * 1_000_000_000
     return (ns % step).eq(0)
@@ -116,7 +134,6 @@ def manifest_failures(root: Path):
         bad = ok[ok["remote_sha256"].astype(str).str.lower() != ok["local_sha256"].astype(str).str.lower()]
         for _, r in bad.iterrows():
             failures.append({"reason": "CHECKSUM_MISMATCH_IN_MANIFEST", "symbol": r.get("symbol"), "interval": r.get("interval"), "month": r.get("month")})
-    # A 404 before listing is allowed. A 404 after the first successful month in that series is not.
     for (symbol, interval), g in m.groupby(["symbol", "interval"], dropna=False):
         g = g.sort_values("month")
         good_months = g.loc[g["status"].eq("ok"), "month"]
@@ -136,11 +153,12 @@ def integrity_failures(root: Path):
         return [{"reason": "MISSING_DATA_INTEGRITY_AUDIT"}]
     d = pd.read_csv(p)
     failures = []
-    # Required strategy inputs: Binance 15m and Bitstamp 12h/1d. Native Binance higher TFs are diagnostics.
     required = d[((d["source"] == "Binance") & (d["interval"] == "15m")) | (d["source"] == "Bitstamp")]
-    expected = {("Binance", "BTCUSDT", "15m"), ("Binance", "ETHUSDT", "15m"),
-                ("Bitstamp", "BTCUSD", "12h"), ("Bitstamp", "BTCUSD", "1d"),
-                ("Bitstamp", "ETHUSD", "12h"), ("Bitstamp", "ETHUSD", "1d")}
+    expected = {
+        ("Binance", "BTCUSDT", "15m"), ("Binance", "ETHUSDT", "15m"),
+        ("Bitstamp", "BTCUSD", "12h"), ("Bitstamp", "BTCUSD", "1d"),
+        ("Bitstamp", "ETHUSD", "12h"), ("Bitstamp", "ETHUSD", "1d"),
+    }
     present = {(str(r.source), str(r.symbol), str(r.interval)) for _, r in required.iterrows()}
     for miss in sorted(expected - present):
         failures.append({"reason": "MISSING_REQUIRED_SERIES", "source": miss[0], "symbol": miss[1], "interval": miss[2]})
@@ -189,7 +207,7 @@ def main():
         "canonical_files": canonical_files,
         "hard_source_integrity_failures": len(hard),
         "hard_failures": hard,
-        "derived_feature_policy": "2h/8h/72h built causally from canonical 15m; exact count and UTC 15m grid required; invalid windows emit no new signal and state persists; no interpolation or synthetic prices",
+        "derived_feature_policy": "30m/1h/2h/4h/8h/12h/1d/72h/1w built causally from canonical 15m; exact count and UTC 15m grid required; invalid candles excluded before indicator computation; no interpolation or synthetic prices",
         "native_binance_higher_tf_role": "DIAGNOSTIC_ONLY",
         "invalid_feature_windows_are_quarantined": True,
         "feature_window_audit_sha256": sha256_file(summary_path),
