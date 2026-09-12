@@ -3,6 +3,8 @@
 **Frozen on:** 2026-09-12  
 **Purpose:** increase evidence outside the already-consumed 2023–2026 development/holdout history without mislabeling retrospective data as prospective evidence.
 
+> **Data-method amendment, frozen before external performance inspection:** `research/external_validation_data_method_amendment_2026-09-12.md`. The amendment changes native Binance higher-timeframe parity from a hard gate to a diagnostic after official 1m/15m/native archives were shown to disagree in a small number of old intervals. The canonical execution/feature chain is checksum-verified Binance 15m with deterministic quarantine of incomplete/off-grid derived windows. Strategy semantics and anti-overfit rules are unchanged.
+
 ## Evidence classification
 
 This program is classified as **EXTERNAL_HISTORICAL_VALIDATION_NOT_PROSPECTIVE**.
@@ -41,11 +43,12 @@ Before any strategy evaluation:
 - duplicate-timestamp audit;
 - OHLC envelope audit;
 - cadence/gap report;
-- native 2h/8h/3d Binance parity against 15m reconstruction;
+- canonical 15m-derived 2h/8h/72h feature-window validity mask;
+- native 2h/8h/3d Binance parity retained as a diagnostic rather than an eligibility veto, per the frozen amendment;
 - source URL/hash manifest;
 - normalized output hashes.
 
-Any hard integrity or parity failure blocks strategy evaluation until resolved.
+Any hard source-integrity failure blocks strategy evaluation. Incomplete or off-grid derived higher-timeframe windows are deterministically quarantined and cannot emit new signals.
 
 ## Frozen strategy rule
 
