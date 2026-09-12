@@ -8,6 +8,10 @@ from typing import Iterable
 
 import pandas as pd
 
+from rtquant.repro.prospective_contract import (
+    read_contract,
+    verify_prospective_contract,
+)
 from .journal import recover_journal
 from .session import PaperSession
 
@@ -98,10 +102,24 @@ def ingest_path(
     *,
     journal_path: str | Path,
     input_path: str | Path,
+    manifest_path: str | Path,
+    source_manifest_path: str | Path,
+    data_gate_path: str | Path,
+    expected_parent_manifest_sha256: str,
     fee_bps_one_way: float = 7.0,
     slippage_bps_one_way: float = 0.0,
     recover_stale_lock: bool = False,
 ) -> dict:
+    manifest = read_contract(manifest_path)
+    verify_prospective_contract(
+        manifest,
+        artifact_path=input_path,
+        source_manifest_path=source_manifest_path,
+        data_gate_path=data_gate_path,
+        expected_artifact_kind="candidate_b_paper_bars",
+        expected_parent_manifest_sha256=expected_parent_manifest_sha256,
+    )
+
     rows = load_rows(input_path)
     with PaperSession(
         journal_path,
@@ -120,6 +138,12 @@ def ingest_path(
         "broker_route": False,
         "performance_embargo_active": PERFORMANCE_EMBARGO_ACTIVE,
         "performance_fields_released": False,
+        "provenance": {
+            "status": "VERIFIED",
+            "manifest_sha256": manifest["manifest_sha256"],
+            "parent_manifest_sha256": manifest["parent_manifest_sha256"],
+            "source_snapshot_id": manifest["source"]["snapshot_id"],
+        },
         "input_rows": len(rows),
         "processed_rows": processed,
         "idempotent_rows": idempotent,
@@ -132,8 +156,6 @@ def status_payload(journal_path: str | Path) -> dict:
     journal = Path(journal_path)
     lock_path = journal.with_suffix(journal.suffix + ".lock")
     if lock_path.exists():
-        # Do not race an active writer. The operational session itself owns the
-        # authoritative cursor while the lock is present.
         return {
             "status": "ACTIVE_WRITER_LOCK_PRESENT",
             "mode": "BROKERLESS_PAPER_ONLY",
@@ -165,15 +187,20 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="rtquant-paper",
         description=(
-            "Brokerless paper-operation CLI. It never routes live orders and "
-            "does not release performance fields while the prospective embargo is active."
+            "Brokerless paper-operation CLI. Ingest is fail-closed and requires "
+            "a verified prospective artifact contract plus the expected parent "
+            "state-ledger commitment. It never routes live orders or releases performance."
         ),
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    ingest = subparsers.add_parser("ingest", help="append validated paper bars to a journal")
+    ingest = subparsers.add_parser("ingest", help="verify provenance, then append paper bars")
     ingest.add_argument("--journal", required=True)
     ingest.add_argument("--input", required=True)
+    ingest.add_argument("--manifest", required=True)
+    ingest.add_argument("--source-manifest", required=True)
+    ingest.add_argument("--data-gate", required=True)
+    ingest.add_argument("--expected-parent-manifest-sha256", required=True)
     ingest.add_argument("--fee-bps-one-way", type=float, default=7.0)
     ingest.add_argument("--slippage-bps-one-way", type=float, default=0.0)
     ingest.add_argument(
@@ -196,6 +223,10 @@ def main(argv: Iterable[str] | None = None) -> int:
             payload = ingest_path(
                 journal_path=args.journal,
                 input_path=args.input,
+                manifest_path=args.manifest,
+                source_manifest_path=args.source_manifest,
+                data_gate_path=args.data_gate,
+                expected_parent_manifest_sha256=args.expected_parent_manifest_sha256,
                 fee_bps_one_way=args.fee_bps_one_way,
                 slippage_bps_one_way=args.slippage_bps_one_way,
                 recover_stale_lock=args.recover_stale_lock,
@@ -209,6 +240,7 @@ def main(argv: Iterable[str] | None = None) -> int:
             "message": str(exc),
             "mode": "BROKERLESS_PAPER_ONLY",
             "broker_route": False,
+            "provenance_verified": False,
             "performance_embargo_active": PERFORMANCE_EMBARGO_ACTIVE,
             "performance_fields_released": False,
         })
