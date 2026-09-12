@@ -7,13 +7,13 @@
 
 A public-safe quantitative-research portfolio showing how a discretionary multi-timeframe Bitcoin framework was converted into a **causal, versioned, testable, and auditable research system**.
 
-> **Current conclusion:** the frozen holdout failed. The post-holdout candidate is a prospective hypothesis, not validated alpha.
+> **Current conclusion:** the frozen holdout failed. A separately frozen 2017–2022 external historical program produced heterogeneous evidence—BTC adverse to Candidate B, ETH supportive—so Candidate B remains a prospective hypothesis, not validated alpha.
 
 ## Why this project matters
 
 The project is intentionally not presented as “a strategy with a high historical Sharpe.” Its main value is the research process:
 
-**formalize → test invariants → diagnose concentration → freeze candidate → fail holdout → preserve failure → attribute mechanism → make one minimal change → embargo consumed data → preregister prospective validation**
+**formalize → test invariants → diagnose concentration → freeze candidate → fail holdout → preserve failure → attribute mechanism → make one minimal change → embargo consumed data → preregister external and prospective validation → preserve contradictory evidence**
 
 The retrospective development path looked strong, but the frozen holdout did not generalize:
 
@@ -24,8 +24,10 @@ The retrospective development path looked strong, but the frozen holdout did not
 | Frozen holdout return | **-21.61%** |
 | Frozen holdout Sharpe | **-1.15** |
 | Frozen holdout max drawdown | **-38.02%** |
+| External history BTC 2017–2022 | **Adverse to Candidate B** |
+| External history ETH 2017–2022 | **Supportive of Candidate B** |
 
-The negative result is retained in the repository instead of being tuned away.
+The negative and contradictory results are retained in the repository instead of being tuned away.
 
 ## Research architecture
 
@@ -66,7 +68,8 @@ If you are reviewing this as a quant researcher, engineer, or hiring manager, st
 5. **Reproducibility / SHA-256 manifests** — [`src/rtquant/repro/`](src/rtquant/repro/)
 6. **Tests** — [`tests/`](tests/)
 7. **Research status and unresolved gates** — [`docs/research_status.md`](docs/research_status.md)
-8. **Technical paper** — [`research/RT_Quant_Research_Public_Technical_Paper.md`](research/RT_Quant_Research_Public_Technical_Paper.md)
+8. **External historical validation result** — [`research/external_validation_results_2017_2022_2026-09-12.md`](research/external_validation_results_2017_2022_2026-09-12.md)
+9. **Technical paper** — [`research/RT_Quant_Research_Public_Technical_Paper.md`](research/RT_Quant_Research_Public_Technical_Paper.md)
 
 For a recruiter-oriented summary, see [`docs/recruiter_guide.md`](docs/recruiter_guide.md).
 
@@ -79,10 +82,11 @@ For a recruiter-oriented summary, see [`docs/recruiter_guide.md`](docs/recruiter
 | Frozen holdout | Test unchanged candidate | **FAIL** |
 | Failure attribution | Explain failure without rescue tuning | Complete |
 | Candidate B | One minimal permission change | Frozen, unvalidated |
+| External history 2017–2022 | Older-regime BTC test + ETH cross-asset replication | **Complete; heterogeneous** |
 | Prospective validation | New-data-only A/B comparison | Waiting for evidence |
 | Long validation | Sparse-trend replication across Bull epochs | Protocol frozen |
 | Risk sizing | Fixed defensive benchmark policies | Unvalidated |
-| Execution | Next-open causal simulator | Built |
+| Execution | Next-open causal simulator + fixed slippage stress | Built; historical stress exercised |
 | Paper shadow | Deterministic brokerless replay | Built, not live |
 
 ## Candidate B — what changed
@@ -100,11 +104,22 @@ What did **not** change:
 - risk-allocation fractions;
 - base transaction-cost convention.
 
-Historical ablation is treated as diagnosis only. Candidate B must be judged on genuinely new data after its freeze boundary.
+Historical ablation is treated as diagnosis only. The 2017–2022 external program is explicitly retrospective external evidence, not prospective confirmation. Candidate B must still be judged on genuinely new data after its freeze boundary.
+
+## External historical validation
+
+The external evaluation protocol was frozen before reading 2017–2022 Candidate A/B performance. The primary test uses core exposure, next-observed-open fills, 14bp round-trip cost, paired divergence segments, and continuous Major Bear episodes as the independent replication unit.
+
+- **BTC:** 26 divergence segments across 3 Bear divergence epochs; total paired delta log ≈ **-0.1701**; 1/3 epochs favor Candidate B; `ADVERSE_EXTERNAL_MECHANISM_EVIDENCE`.
+- **ETH:** 20 divergence segments across 4 Bear divergence epochs; total paired delta log ≈ **+0.1482**; 3/4 epochs favor Candidate B; `EXTERNAL_MECHANISM_SUPPORT`.
+- Fixed **0/2/5bp one-way slippage** stress does not change either qualitative label.
+- Independent-epoch counts remain small, so no conventional statistical-significance claim is made.
+
+This is **heterogeneous cross-asset evidence**, not uniform replication and not validated alpha.
 
 ## Prospective validation gate
 
-Candidate B is not eligible for formal judgement before all three conditions are met:
+Candidate B is not eligible for formal prospective judgement before all three conditions are met:
 
 - at least **180 forward days**;
 - at least **3 independent Major Bear divergence epochs**;
@@ -140,11 +155,10 @@ src/rtquant/
   execution/     next-open causal execution simulator
   paper/         idempotent paper-shadow runner
   repro/         SHA-256 run-manifest tooling
-
 docs/            methods, architecture, status, recruiter review path
-research/        public technical paper
+research/        public technical paper + external-validation governance/results
 examples/        synthetic bars/events only
-tests/           unit + integration tests
+tests/           unit + integration + research-governance tests
 .github/          CI workflow
 ```
 
@@ -158,6 +172,7 @@ Public:
 - generic state-machine architecture;
 - causal timing and execution semantics;
 - failed-holdout evidence;
+- pre-registered external-validation evidence, including contradictory results;
 - prospective validation design;
 - reproducibility and audit tooling;
 - synthetic tests and examples.
@@ -175,6 +190,7 @@ Not public:
 
 - [Recruiter / reviewer guide](docs/recruiter_guide.md)
 - [Current research status](docs/research_status.md)
+- [External historical validation result](research/external_validation_results_2017_2022_2026-09-12.md)
 - [Portfolio landing page](docs/portfolio_landing.md)
 - [Methodology](docs/methodology.md)
 - [Architecture](docs/architecture.md)
