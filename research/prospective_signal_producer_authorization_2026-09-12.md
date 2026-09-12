@@ -1,11 +1,11 @@
 # v0.24 Prospective Signal-Producer Authorization Status
 
 **Updated:** 2026-09-13  
-**Current status:** `BLOCKED_PROSPECTIVE_INPUT_CONTINUITY_NOT_FROZEN`
+**Current engineering status:** `INPUT_CONTINUITY_FROZEN_SOURCE_INTAKE_WAITING`
 
-## Frozen implementation now exists
+## Frozen prospective producer
 
-A private prospective producer implementation has been frozen without reading or computing Candidate B forward performance. Its public byte commitment is:
+A private prospective producer implementation was frozen without reading or computing Candidate B forward performance.
 
 - producer: `v024_prospective_signal_producer_v1`
 - SHA-256: `c2f2a47cf4a22d975a75c922eec3d0cb6d65664180fdf80246b302ac80ed8ceb`
@@ -14,24 +14,40 @@ A private prospective producer implementation has been frozen without reading or
 - authority-critical state/action mismatches: 0
 - Candidate B integration isolation: PASS
 
-The first regression-harness attempt failed because its comparison-window initialization truncated prior W7 watch state. That failed attempt is preserved privately. The reference methodology was corrected by constructing full consumed-history state before slicing the comparison window; no strategy semantic was changed.
+The first regression-harness attempt failed because its comparison-window initialization truncated prior W7 watch state. That failed attempt remains preserved privately. The regression harness was corrected by constructing full consumed-history state before slicing the comparison window; no strategy semantic was changed.
 
-This producer is a reproduction of already-frozen private semantics, not a new strategy candidate. The external-history compatibility-v3 adapter remains `EXTERNAL_HISTORICAL_VALIDATION_NOT_PROSPECTIVE` and is not relabeled as prospective evidence.
+The external-history compatibility-v3 adapter remains `EXTERNAL_HISTORICAL_VALIDATION_NOT_PROSPECTIVE`; it is not relabeled as prospective evidence.
 
-## Why operation is still blocked
+## Frozen consumed warm-up seed
 
-Two source-continuity requirements remain separate from the producer implementation freeze:
+Long-memory state is initialized from an immutable seed containing only data available at or before the Candidate B freeze boundary. The seed is initialization-only and contributes zero prospective evidence rows.
 
-1. an immutable consumed **pre-freeze warm-up seed** through `2026-09-12T02:00:00Z`, used only to initialize long-memory indicators/state and never counted as prospective evidence;
-2. a verified post-freeze **Bitstamp BTCUSD 12h/1d state-only source chain**, with Bitstamp prices explicitly prohibited from Binance execution/PnL.
+- classification: `V024_CONSUMED_PRE_FREEZE_WARMUP_SEED`
+- freeze boundary: `2026-09-12T02:00:00Z` inclusive for warm-up eligibility
+- warm-up contract SHA-256: `a252b31f29bc7604225d482b9ec394c58360145f2ab57368e80860958da33085`
+- seed-root SHA-256: `4d5233007551a282164a40cdb34580535454fa07d757666180dc7d83d039589f`
+- prospective evidence rows: 0
+- workflow run: `34723033060`
+- workflow artifact: `10306991596`
 
-The public intake therefore commits the producer SHA now but still fails closed until the warm-up seed receives exact byte/hash commitments and the forward Bitstamp state-only gate is present.
+The seed contains consumed Binance BTCUSDT 15m and Bitstamp BTCUSD 12h/1d source material needed only for indicator/state initialization. Its contract requires performance evaluation and Candidate B judgement to remain disabled.
+
+## Forward source chain
+
+The public `forward-native-data` workflow now collects both causally distinct sources under the same cutoff:
+
+1. Binance native forward data for the frozen signal/execution architecture;
+2. Bitstamp BTCUSD 12h/1d **state-only** data.
+
+Bitstamp is hard-gated with `state_only=true` and `price_pnl_use_allowed=false`; Bitstamp prices cannot enter Binance execution/PnL.
+
+The latest verified source-health run after the collector fix was `34724787426` and passed its enforcement step. At that run time, both Binance and Bitstamp correctly reported `WAITING_NO_COMPLETED_POST_FREEZE_UTC_DAY`; that is an expected availability state, not evidence failure and not a prospective result.
 
 ## Operational consequence
 
-`rtquant-prospective-intake` may collect the complete post-freeze Binance pool and the Bitstamp state-only pool, verify their data-only gates, and then stop at the warm-up-seed commitment gate. There is no CLI option that can override the producer or warm-up commitments.
+The producer commitment, warm-up commitment and forward Bitstamp state-source path are now engineered and hash-bound. `rtquant-prospective-intake` may proceed to the frozen private producer only after a formal `mode=full` source rebuild returns eligible source gates. While the source gates are WAITING, no state ledger is released and no Candidate B performance is read.
 
-Once the exact warm-up seed contract is frozen, the intake chain may verify the private producer bytes, the warm-up bytes, Binance source manifest/gate and Bitstamp state-source manifest/gate, then emit a provenance-bound state ledger. The public information gate still exposes no Candidate A/B performance before the frozen v0.24 information floor is met.
+There is no CLI override for producer or warm-up commitments. Any byte mismatch, wrong source scope, Bitstamp PnL permission, or non-frozen producer fails closed.
 
 ## Research status unchanged
 

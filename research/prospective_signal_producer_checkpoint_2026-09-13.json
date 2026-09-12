@@ -10,12 +10,34 @@
     "authority_critical_mismatches": 0,
     "performance_read_or_computed_for_freeze": false
   },
+  "warmup_seed": {
+    "status": "FROZEN_CONSUMED_INITIALIZATION_ONLY",
+    "classification": "V024_CONSUMED_PRE_FREEZE_WARMUP_SEED",
+    "contract_sha256": "a252b31f29bc7604225d482b9ec394c58360145f2ab57368e80860958da33085",
+    "seed_root_sha256": "4d5233007551a282164a40cdb34580535454fa07d757666180dc7d83d039589f",
+    "prospective_evidence_rows": 0,
+    "workflow_run_id": 34723033060,
+    "artifact_id": 10306991596
+  },
+  "forward_source_chain": {
+    "binance": "DATA_ONLY",
+    "bitstamp_12h_1d": "STATE_ONLY_NO_PNL",
+    "bitstamp_price_pnl_use_allowed": false,
+    "latest_verified_health_run_id": 34724787426,
+    "latest_verified_health_status": "WAITING_NO_COMPLETED_POST_FREEZE_UTC_DAY",
+    "waiting_is_expected_availability_state": true
+  },
   "operational_authorization": {
-    "status": "BLOCKED_PROSPECTIVE_INPUT_CONTINUITY_NOT_FROZEN",
-    "remaining_blockers": [
-      "FROZEN_WARMUP_SEED_THROUGH_CANDIDATE_FREEZE_NOT_YET_BOUND",
-      "FORWARD_BITSTAMP_STATE_ONLY_SOURCE_CHAIN_NOT_YET_BOUND"
-    ]
+    "status": "READY_WHEN_FORMAL_FULL_SOURCE_GATES_ARE_ELIGIBLE",
+    "remaining_engineering_blockers": [],
+    "performance_embargo_active": true,
+    "candidate_b_judgement_allowed": false
+  },
+  "ci": {
+    "run_id": 34724840404,
+    "python_3_10": "PASS",
+    "python_3_11": "PASS",
+    "python_3_12": "PASS"
   },
   "failed_regression_attempt_preserved": true,
   "external_v3_reclassified_as_prospective": false,
