@@ -1,0 +1,57 @@
+name: external-history-reconcile
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/external-history-reconcile.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pandas numpy
+      - name: Reuse checksum-audited run3 artifact
+        run: |
+          mkdir -p external_history_2017_2022
+          gh run download 34676847520 -n rt-external-history-2017-2022 -D external_history_2017_2022
+      - name: Diagnose exact gaps and native mismatches
+        run: python tools/diagnose_external_parity.py --root external_history_2017_2022
+      - name: Reconcile affected intervals from official Binance 1m
+        id: reconcile
+        continue-on-error: true
+        run: python tools/reconcile_binance_15m_from_1m.py --root external_history_2017_2022
+      - name: Final external-history data gate
+        id: gate
+        continue-on-error: true
+        run: python tools/finalize_external_data_gate.py --root external_history_2017_2022
+      - name: Print reconciliation evidence
+        if: always()
+        run: |
+          cat external_history_2017_2022/binance_15m_gap_details.csv || true
+          cat external_history_2017_2022/binance_parity_mismatch_details.csv || true
+          cat external_history_2017_2022/ONE_MINUTE_RECONCILIATION.json || true
+          cat external_history_2017_2022/binance_1m_reconciliation_results.csv || true
+          cat external_history_2017_2022/FINAL_DATA_GATE.json || true
+      - name: Upload reconciled external-history artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rt-external-history-2017-2022-reconciled
+          path: external_history_2017_2022
+          retention-days: 14
+          compression-level: 6
+      - name: Enforce final gate
+        if: steps.gate.outcome != 'success'
+        run: exit 1
