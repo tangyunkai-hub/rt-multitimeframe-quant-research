@@ -7,10 +7,15 @@ import pandas as pd
 TFSEC={"15m":900,"2h":7200,"8h":28800,"3d":259200}
 EXPECTED={"2h":8,"8h":32,"3d":288}
 
+def parse_utc(s):
+    # Old Binance archives include a few non-canonical sub-second timestamps after maintenance events.
+    # pandas 3 requires explicit mixed ISO parsing for these legitimate source rows.
+    return pd.to_datetime(s,format='mixed',utc=True)
+
 def load(p):
     d=pd.read_csv(p)
-    d['open_time']=pd.to_datetime(d.open_time,utc=True)
-    d['availability_time']=pd.to_datetime(d.availability_time,utc=True)
+    d['open_time']=parse_utc(d.open_time)
+    d['availability_time']=parse_utc(d.availability_time)
     for c in ['open','high','low','close','volume']:
         d[c]=pd.to_numeric(d[c],errors='raise').astype(float)
     return d
@@ -45,7 +50,8 @@ def base_gaps(root:Path,symbol:str):
     for i in dt[dt!=expected].dropna().index:
         missing=max(int(round(dt.iloc[i]/expected))-1,0)
         rows.append({'symbol':symbol,'previous_open_time':t.iloc[i-1],'next_open_time':t.iloc[i],
-                     'gap_seconds':float(dt.iloc[i].total_seconds()),'estimated_missing_15m_bars':missing})
+                     'gap_seconds':float(dt.iloc[i].total_seconds()),'estimated_missing_15m_bars':missing,
+                     'next_open_time_on_15m_grid':bool((t.iloc[i].value//10**9)%900==0)})
     return rows
 
 def main():
