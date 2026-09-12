@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 import hashlib
 import json
@@ -15,6 +15,16 @@ PAPER_JOURNAL_SCHEMA_VERSION = 1
 
 class JournalIntegrityError(RuntimeError):
     """Raised when an append-only paper journal cannot be deterministically verified."""
+
+
+@dataclass(frozen=True)
+class JournalCursor:
+    """Verified append cursor recovered from the authoritative journal."""
+
+    state: PaperState
+    seq: int
+    previous_record_hash: str | None
+    file_size: int
 
 
 def _canonical_json(value: Any) -> str:
@@ -45,12 +55,13 @@ def _read_records(path: Path) -> list[dict]:
     return records
 
 
-def replay_journal(path: str | Path) -> PaperState:
-    """Verify the full hash/state chain and recover the deterministic final PaperState."""
+def recover_journal(path: str | Path) -> JournalCursor:
+    """Verify the full chain once and return a cursor safe for locked appends."""
     path = Path(path)
     state = PaperState()
     previous_record_hash = None
-    for expected_seq, record in enumerate(_read_records(path), 1):
+    records = _read_records(path)
+    for expected_seq, record in enumerate(records, 1):
         if record.get("schema_version") != PAPER_JOURNAL_SCHEMA_VERSION:
             raise JournalIntegrityError(
                 f"unsupported journal schema at seq {expected_seq}; versioned replay required"
@@ -88,45 +99,62 @@ def replay_journal(path: str | Path) -> PaperState:
             raise JournalIntegrityError(f"stored state mismatch at seq {expected_seq}")
         previous_record_hash = stored_record_hash
         state = new_state
-    return state
+
+    size = path.stat().st_size if path.exists() else 0
+    return JournalCursor(
+        state=state,
+        seq=len(records),
+        previous_record_hash=previous_record_hash,
+        file_size=size,
+    )
 
 
-def process_and_append(
+def replay_journal(path: str | Path) -> PaperState:
+    """Verify the full hash/state chain and recover the deterministic final PaperState."""
+    return recover_journal(path).state
+
+
+def append_from_cursor(
     path: str | Path,
-    state: PaperState,
+    cursor: JournalCursor,
     row: dict,
     *,
     fee_bps_one_way: float = 7.0,
     slippage_bps_one_way: float = 0.0,
 ):
-    """Process one bar and append one immutable audit record unless it is an idempotent retry."""
+    """Append one bar from an already verified cursor held under a single-writer lock.
+
+    The file-size guard prevents an operational session from appending after an
+    out-of-band append/truncate without first recovering and verifying the journal.
+    """
     path = Path(path)
-    records = _read_records(path)
-    recovered = replay_journal(path)
-    if recovered != state:
-        raise JournalIntegrityError("supplied state does not match journal-recovered state")
+    current_size = path.stat().st_size if path.exists() else 0
+    if current_size != cursor.file_size:
+        raise JournalIntegrityError(
+            "journal bytes changed after recovery; recover and verify before appending"
+        )
 
     canonical_bar = canonical_paper_bar(row)
     new_state, action = process_bar(
-        state,
+        cursor.state,
         canonical_bar,
         fee_bps_one_way=fee_bps_one_way,
         slippage_bps_one_way=slippage_bps_one_way,
     )
     if action.get("status") == "IDEMPOTENT_NOOP":
-        return new_state, action
+        return cursor, action
 
     record = {
         "schema_version": PAPER_JOURNAL_SCHEMA_VERSION,
-        "seq": len(records) + 1,
-        "previous_record_hash": records[-1]["record_hash"] if records else None,
+        "seq": cursor.seq + 1,
+        "previous_record_hash": cursor.previous_record_hash,
         "bar": canonical_bar,
         "bar_hash": _sha256(canonical_bar),
         "execution": {
             "fee_bps_one_way": float(fee_bps_one_way),
             "slippage_bps_one_way": float(slippage_bps_one_way),
         },
-        "state_before_hash": state.digest(),
+        "state_before_hash": cursor.state.digest(),
         "state_after": asdict(new_state),
         "state_after_hash": new_state.digest(),
         "action": action,
@@ -138,4 +166,32 @@ def process_and_append(
         f.write(_canonical_json(record) + "\n")
         f.flush()
         os.fsync(f.fileno())
-    return new_state, action
+
+    return JournalCursor(
+        state=new_state,
+        seq=cursor.seq + 1,
+        previous_record_hash=record["record_hash"],
+        file_size=path.stat().st_size,
+    ), action
+
+
+def process_and_append(
+    path: str | Path,
+    state: PaperState,
+    row: dict,
+    *,
+    fee_bps_one_way: float = 7.0,
+    slippage_bps_one_way: float = 0.0,
+):
+    """Compatibility wrapper: fully recover, verify supplied state, then append."""
+    cursor = recover_journal(path)
+    if cursor.state != state:
+        raise JournalIntegrityError("supplied state does not match journal-recovered state")
+    new_cursor, action = append_from_cursor(
+        path,
+        cursor,
+        row,
+        fee_bps_one_way=fee_bps_one_way,
+        slippage_bps_one_way=slippage_bps_one_way,
+    )
+    return new_cursor.state, action
