@@ -16,6 +16,7 @@ dev = ["pytest>=7"]
 rtquant-paper = "rtquant.paper.cli:main"
 rtquant-prospective-gate = "rtquant.validation.cli:main"
 rtquant-prospective-contract = "rtquant.repro.contract_cli:main"
+rtquant-prospective-intake = "rtquant.intake.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/tangyunkai-hub/rt-multitimeframe-quant-research"
