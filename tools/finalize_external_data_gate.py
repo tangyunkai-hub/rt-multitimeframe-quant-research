@@ -1,43 +1,63 @@
 from __future__ import annotations
-import argparse, json
+
+import argparse
+import json
 from pathlib import Path
+
 import pandas as pd
 
 
-def truthy(v):
-    if isinstance(v,bool): return v
-    return str(v).strip().lower() in {'true','1','yes'}
-
-
 def main():
-    ap=argparse.ArgumentParser(); ap.add_argument('--root',default='external_history_2017_2022'); a=ap.parse_args(); root=Path(a.root)
-    integrity=pd.read_csv(root/'data_integrity_audit.csv')
-    hard_integrity=[]
-    for _,r in integrity.iterrows():
-        if int(r.get('duplicate_timestamps',0))>0 or not truthy(r.get('monotonic',True)) or int(r.get('ohlc_envelope_failures',0))>0:
-            hard_integrity.append(r.to_dict())
-    parity=pd.read_csv(root/'binance_native_parity.csv')
-    mism=parity[pd.to_numeric(parity.mismatch_bars,errors='coerce').fillna(0).gt(0)]
-    rec_status='NOT_NEEDED'
-    rec_ok=False
-    rec_file=root/'ONE_MINUTE_RECONCILIATION.json'
-    if len(mism):
-        if rec_file.exists():
-            rec=json.loads(rec_file.read_text()); rec_status=rec.get('status','UNKNOWN'); rec_ok=rec_status=='PASS'
-        else: rec_status='MISSING'
-    else: rec_ok=True
-    eligible=(len(hard_integrity)==0 and rec_ok)
-    summary={
-        'status':'PASS' if eligible else 'FAIL',
-        'classification':'EXTERNAL_HISTORICAL_VALIDATION_NOT_PROSPECTIVE',
-        'hard_integrity_failures':len(hard_integrity),
-        'raw_native_parity_mismatch_groups':int(len(mism)),
-        'official_1m_reconciliation_status':rec_status,
-        'strategy_evaluation_eligible':bool(eligible),
-        'rule':'A raw native-parity mismatch is eligible only if official Binance 1m reconstruction resolves every mismatching bin exactly. No interpolation or synthetic price repair is allowed.'
-    }
-    (root/'FINAL_DATA_GATE.json').write_text(json.dumps(summary,indent=2))
-    print(json.dumps(summary,indent=2))
-    if not eligible: raise SystemExit('external historical data gate failed')
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--root', default='external_history_2017_2022')
+    a = ap.parse_args()
+    root = Path(a.root)
 
-if __name__=='__main__': main()
+    audit_path = root / 'CANONICAL_CHAIN_AUDIT.json'
+    if not audit_path.exists():
+        raise SystemExit('missing CANONICAL_CHAIN_AUDIT.json; run audit_canonical_external_chain.py first')
+    canonical = json.loads(audit_path.read_text())
+
+    parity_path = root / 'binance_native_parity.csv'
+    native_groups = 0
+    native_mismatch_bars = 0
+    if parity_path.exists():
+        parity = pd.read_csv(parity_path)
+        mm = pd.to_numeric(parity.get('mismatch_bars'), errors='coerce').fillna(0)
+        native_groups = int(mm.gt(0).sum())
+        native_mismatch_bars = int(mm.sum())
+
+    rec_status = 'NOT_RUN'
+    rec_path = root / 'ONE_MINUTE_RECONCILIATION.json'
+    if rec_path.exists():
+        rec_status = json.loads(rec_path.read_text()).get('status', 'UNKNOWN')
+
+    eligible = canonical.get('status') == 'PASS' and int(canonical.get('hard_source_integrity_failures', 1)) == 0
+    summary = {
+        'status': 'PASS' if eligible else 'FAIL',
+        'classification': 'EXTERNAL_HISTORICAL_VALIDATION_NOT_PROSPECTIVE',
+        'data_method_version': 'CANONICAL_15M_AMENDMENT_2026-09-12',
+        'hard_source_integrity_failures': int(canonical.get('hard_source_integrity_failures', 0)),
+        'canonical_chain_audit_status': canonical.get('status', 'UNKNOWN'),
+        'native_higher_tf_parity_role': 'DIAGNOSTIC_ONLY',
+        'native_parity_mismatch_groups': native_groups,
+        'native_parity_mismatch_bars': native_mismatch_bars,
+        'official_1m_forensic_reconciliation_status': rec_status,
+        'strategy_evaluation_eligible': bool(eligible),
+        'rule': (
+            'Checksum-verified Binance 15m is the canonical execution/feature chain. '
+            '2h/8h/72h features are causally derived from canonical 15m. Windows with incomplete counts '
+            'or off-grid 15m inputs are quarantined and emit no new signal. Native Binance higher-timeframe '
+            'parity is a diagnostic because official old-history products were shown to disagree across intervals. '
+            'No interpolation or synthetic prices are permitted.'
+        ),
+        'amendment': 'research/external_validation_data_method_amendment_2026-09-12.md',
+    }
+    (root / 'FINAL_DATA_GATE.json').write_text(json.dumps(summary, indent=2))
+    print(json.dumps(summary, indent=2))
+    if not eligible:
+        raise SystemExit('external historical data gate failed')
+
+
+if __name__ == '__main__':
+    main()
