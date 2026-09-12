@@ -6,6 +6,8 @@ on:
     paths:
       - 'tools/download_external_history.py'
       - 'tools/diagnose_external_parity.py'
+      - 'tools/reconcile_binance_15m_from_1m.py'
+      - 'tools/finalize_external_data_gate.py'
       - 'research/external_validation_prereg_2026-09-12.md'
       - '.github/workflows/external-history.yml'
 
@@ -26,16 +28,27 @@ jobs:
         run: python tools/download_external_history.py --out external_history_2017_2022 --start-year 2017 --end-year 2022
       - name: Diagnose native-parity mismatches
         if: always()
-        run: python tools/diagnose_external_parity.py --root external_history_2017_2022 || true
+        run: python tools/diagnose_external_parity.py --root external_history_2017_2022
+      - name: Reconcile sparse archive inconsistencies from official Binance 1m
+        if: always()
+        run: python tools/reconcile_binance_15m_from_1m.py --root external_history_2017_2022 || true
+      - name: Final external-history data gate
+        id: final_gate
+        continue-on-error: true
+        if: always()
+        run: python tools/finalize_external_data_gate.py --root external_history_2017_2022
       - name: Show audit summaries
         if: always()
         run: |
           find external_history_2017_2022 -maxdepth 2 -type f -printf '%p %k KB\n' | sort || true
           cat external_history_2017_2022/DATASET_SUMMARY.json || true
+          cat external_history_2017_2022/FINAL_DATA_GATE.json || true
           cat external_history_2017_2022/data_integrity_audit.csv || true
           cat external_history_2017_2022/binance_native_parity.csv || true
           cat external_history_2017_2022/binance_15m_gap_details.csv || true
           cat external_history_2017_2022/binance_parity_mismatch_details.csv || true
+          cat external_history_2017_2022/ONE_MINUTE_RECONCILIATION.json || true
+          cat external_history_2017_2022/binance_1m_reconciliation_results.csv || true
       - name: Upload external-history dataset and audits
         if: always()
         uses: actions/upload-artifact@v4
@@ -44,6 +57,6 @@ jobs:
           path: external_history_2017_2022
           retention-days: 14
           compression-level: 6
-      - name: Enforce data gate
-        if: steps.collect.outcome != 'success'
+      - name: Enforce final data gate
+        if: steps.final_gate.outcome != 'success'
         run: exit 1
