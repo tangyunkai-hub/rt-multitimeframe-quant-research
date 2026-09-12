@@ -1,0 +1,37 @@
+{
+  "date": "2026-09-12",
+  "classification": "EXTERNAL_HISTORICAL_VALIDATION_NOT_PROSPECTIVE",
+  "performance_read_before_checkpoint": false,
+  "v1_cross_granularity_exact_reconstruction": "FAIL_PRESERVED",
+  "native_timeframe_v2": {
+    "source_integrity": "PASS",
+    "candidate_ab_semantic_compatibility": "FAIL",
+    "performance_use": "BLOCKED",
+    "modern_data_run_id": 34696769027,
+    "external_data_run_id": 34696780936
+  },
+  "timestamp_hardening": {
+    "status": "PASS",
+    "note": "Binance Spot archive timestamp unit switch for 2025+ is handled and source-period bounds are hard-gated."
+  },
+  "bitstamp_modern_state_source": {
+    "run_id": 34697817692,
+    "artifact_id": 10299262906,
+    "artifact_sha256": "9ad5e23b63596ec650e29def7010f2916c62d99474ed0482b141450dd7fe7c29",
+    "data_gate": "PASS",
+    "comparison_window": "2023-06-01 through 2026-01-10T07:00:00Z for authority-state parity",
+    "12h_ssl_state_up_down_mismatches": 0,
+    "1d_tdo_gc_dc_oversold_mismatches": 0
+  },
+  "implementation_compatibility_v3": {
+    "status": "MODERN_SEMANTIC_REGRESSION_PASS",
+    "comparison_start": "2023-06-01T00:00:00Z",
+    "comparison_cutoff": "2026-01-10T07:00:00Z",
+    "campaign_timestamps": 45807,
+    "authority_critical_state_action_mismatches": 0,
+    "invariant_failures": 0,
+    "performance_evaluation_eligible": true,
+    "adapter_document": "research/external_validation_implementation_compatibility_v3_2026-09-12.md"
+  },
+  "next_action": "Run frozen BTC 2017-2022 Candidate A versus Candidate B through implementation-compatibility v3; compute paired divergence segments, Major Bear epoch aggregation, leave-one-epoch-out, Long/Short campaign attribution and invariants; do not tune from results."
+}
