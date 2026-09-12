@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - 'tools/download_external_history.py'
+      - 'tools/diagnose_external_parity.py'
       - 'research/external_validation_prereg_2026-09-12.md'
       - '.github/workflows/external-history.yml'
 
@@ -23,6 +24,9 @@ jobs:
         id: collect
         continue-on-error: true
         run: python tools/download_external_history.py --out external_history_2017_2022 --start-year 2017 --end-year 2022
+      - name: Diagnose native-parity mismatches
+        if: always()
+        run: python tools/diagnose_external_parity.py --root external_history_2017_2022 || true
       - name: Show audit summaries
         if: always()
         run: |
@@ -30,6 +34,7 @@ jobs:
           cat external_history_2017_2022/DATASET_SUMMARY.json || true
           cat external_history_2017_2022/data_integrity_audit.csv || true
           cat external_history_2017_2022/binance_native_parity.csv || true
+          cat external_history_2017_2022/binance_15m_gap_details.csv || true
           cat external_history_2017_2022/binance_parity_mismatch_details.csv || true
       - name: Upload external-history dataset and audits
         if: always()
