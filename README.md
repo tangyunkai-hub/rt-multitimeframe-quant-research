@@ -13,7 +13,7 @@ A public-safe quantitative-research portfolio showing how a discretionary multi-
 
 The project is intentionally not presented as “a strategy with a high historical Sharpe.” Its main value is the research process:
 
-**formalize → test invariants → diagnose concentration → freeze candidate → fail holdout → preserve failure → attribute mechanism → make one minimal change → embargo consumed data → preregister external and prospective validation → preserve contradictory evidence → harden reproducibility and paper audit**
+**formalize → test invariants → diagnose concentration → freeze candidate → fail holdout → preserve failure → attribute mechanism → make one minimal change → embargo consumed data → preregister external and prospective validation → preserve contradictory evidence → harden risk, execution, reproducibility and paper audit**
 
 The retrospective development path looked strong, but the frozen holdout did not generalize:
 
@@ -42,11 +42,12 @@ flowchart LR
     D2 --> E
     E --> F[Paired divergence evaluation]
     C --> G[Risk-role layer]
-    G --> H[Next-open execution]
-    H --> I[Deterministic paper shadow]
-    F --> J[Evidence status]
-    I --> J
-    J --> K[Versioned hashes + run manifests]
+    G --> H[Fixed risk-policy layer]
+    H --> I[Next-open execution]
+    I --> J[Deterministic paper shadow]
+    F --> K[Evidence status]
+    J --> K
+    K --> L[Versioned hashes + run manifests]
 ```
 
 Key design choices:
@@ -55,6 +56,7 @@ Key design choices:
 - local contrary evidence can degrade risk state without silently reversing direction;
 - Long and Short permissions are not forced into mathematical symmetry;
 - signals become actionable only after their source bars close;
+- risk sizing cannot create directional permission;
 - next-open execution is separated from signal generation;
 - strategy permissions, risk sizing, execution, and paper operation are separate research layers.
 
@@ -64,14 +66,15 @@ If you are reviewing this as a quant researcher, engineer, or hiring manager, st
 
 1. **State-machine design** — [`src/rtquant/core/`](src/rtquant/core/)
 2. **Prospective A/B evaluation** — [`src/rtquant/validation/`](src/rtquant/validation/)
-3. **Causal execution** — [`src/rtquant/execution/`](src/rtquant/execution/)
-4. **Deterministic paper shadow + audit journal** — [`src/rtquant/paper/`](src/rtquant/paper/)
-5. **Reproducibility / SHA-256 manifests** — [`src/rtquant/repro/`](src/rtquant/repro/)
-6. **Tests** — [`tests/`](tests/)
-7. **Research status and unresolved gates** — [`docs/research_status.md`](docs/research_status.md)
-8. **External historical validation result** — [`research/external_validation_results_2017_2022_2026-09-12.md`](research/external_validation_results_2017_2022_2026-09-12.md)
-9. **Cross-exchange execution result** — [`research/cross_exchange_execution_results_2017_2022_2026-09-12.md`](research/cross_exchange_execution_results_2017_2022_2026-09-12.md)
-10. **Technical paper** — [`research/RT_Quant_Research_Public_Technical_Paper.md`](research/RT_Quant_Research_Public_Technical_Paper.md)
+3. **Risk-capital architecture** — [`src/rtquant/risk/`](src/rtquant/risk/)
+4. **Causal execution** — [`src/rtquant/execution/`](src/rtquant/execution/)
+5. **Deterministic paper shadow + audit journal** — [`src/rtquant/paper/`](src/rtquant/paper/)
+6. **Reproducibility / SHA-256 manifests** — [`src/rtquant/repro/`](src/rtquant/repro/)
+7. **Tests** — [`tests/`](tests/)
+8. **Research status and unresolved gates** — [`docs/research_status.md`](docs/research_status.md)
+9. **External historical validation result** — [`research/external_validation_results_2017_2022_2026-09-12.md`](research/external_validation_results_2017_2022_2026-09-12.md)
+10. **Cross-exchange execution result** — [`research/cross_exchange_execution_results_2017_2022_2026-09-12.md`](research/cross_exchange_execution_results_2017_2022_2026-09-12.md)
+11. **Technical paper** — [`research/RT_Quant_Research_Public_Technical_Paper.md`](research/RT_Quant_Research_Public_Technical_Paper.md)
 
 For a recruiter-oriented summary, see [`docs/recruiter_guide.md`](docs/recruiter_guide.md).
 
@@ -86,10 +89,11 @@ For a recruiter-oriented summary, see [`docs/recruiter_guide.md`](docs/recruiter
 | Candidate B | One minimal permission change | Frozen, unvalidated |
 | External history 2017–2022 | Older-regime BTC test + ETH cross-asset replication | **Complete; heterogeneous** |
 | Cross-exchange execution | Revalue frozen states on Coinbase | **Complete; venue-consistent** |
+| Independent signal-source recreation | Exact native-clock replication | **Blocked by surveyed provider coverage** |
 | Prospective validation | New-data-only A/B comparison | Waiting for evidence |
 | Long validation | Sparse-trend replication across Bull epochs | Protocol frozen |
-| Risk sizing | Fixed defensive benchmark policies | Unvalidated |
-| Execution | Next-open causal simulator + fixed slippage stress | Built; historical stress exercised |
+| Risk sizing | Fixed defensive benchmark policies | **Architecture implemented; policies unvalidated** |
+| Execution | Exact next-open causal wealth path | **Engineering hardened; parity-tested** |
 | Paper shadow | Hash-chained deterministic brokerless replay | **Engineering hardened, not live** |
 | Reproducibility | Collision-safe manifests + byte verification | **Hardened** |
 
@@ -105,7 +109,7 @@ What did **not** change:
 - higher-authority Long recovery logic;
 - frozen indicator thresholds;
 - stop thresholds;
-- risk-allocation fractions;
+- frozen risk-policy family;
 - base transaction-cost convention.
 
 Historical ablation is diagnosis only. The 2017–2022 external program and Coinbase execution replication are explicitly retrospective robustness evidence, not prospective confirmation. Candidate B must still be judged on genuinely new data after its freeze boundary.
@@ -121,6 +125,16 @@ The external evaluation protocol was frozen before reading 2017–2022 Candidate
 
 A second preregistered test held the frozen A/B state paths constant and moved only execution/PnL to Coinbase. BTC remained adverse and ETH remained supportive; segment and Bear-epoch signs matched across venues for both assets. This makes the heterogeneity **execution-venue robust**, but still not validated alpha.
 
+## Risk, execution, and paper-engineering safeguards
+
+The public risk layer implements the frozen v0.26 architecture without publishing proprietary exact benchmark sizing recipes. It enforces non-additive hedge reasons, one-time reduction, proportional gross-cap scaling, no exposure creation from `FLAT`, no Long-to-Short defensive flip, and keeps the unresolved Short protective-long mirror disabled. No policy can be selected from consumed historical PnL.
+
+The v0.27 execution layer now uses an exact multiplicative wealth path: old exposure owns the gap to the next observed open, the new exposure owns open-to-close, and transaction costs apply at the turnover event. Fail-closed input checks prevent duplicate timestamps and invalid prices/costs. Integration tests require this batch simulator to match v0.28 incremental paper equity bar-by-bar.
+
+The brokerless v0.28 paper layer has no live order route. Its audit journal is append-only and SHA-256 chained, uses canonical bar identity and an explicit schema version, supports deterministic restart recovery, treats equivalent retries as idempotent no-ops, and hard-fails when an already processed timestamp arrives with changed data. Journal tampering and stale-state continuation are detected.
+
+Run manifests reject ambiguous duplicate keys and verify both the manifest self-hash and the exact current input bytes. The combined risk/execution/paper test suite passed on Python **3.10, 3.11, and 3.12** in CI run `34700451444`.
+
 ## Prospective validation gate
 
 Candidate B is not eligible for formal prospective judgement before all three conditions are met:
@@ -130,12 +144,6 @@ Candidate B is not eligible for formal prospective judgement before all three co
 - at least **6 A/B divergence segments**.
 
 The primary mechanism statistic is paired incremental log-return over intervals where Candidate A and B actually differ. Multiple re-entry attempts inside one continuous Bear epoch are not counted as independent replications.
-
-## Paper-shadow and reproducibility safeguards
-
-The brokerless paper layer has no live order route. Its audit journal is append-only and SHA-256 chained, supports deterministic restart recovery, treats identical retries as idempotent no-ops, and hard-fails when an already processed timestamp arrives with changed data. Journal tampering and stale-state continuation are detected.
-
-Run manifests reject ambiguous duplicate keys and verify both the manifest self-hash and the exact current input bytes. CI exercises the repository on Python **3.10, 3.11, and 3.12**.
 
 ## Quick start
 
@@ -162,7 +170,8 @@ src/rtquant/
   core/          generic campaign state machine + Candidate B abstraction
   io/            normalized-event schema validation
   validation/    paired A/B divergence evaluation
-  execution/     next-open causal execution simulator
+  risk/          public-safe fixed-policy capital architecture
+  execution/     exact next-open causal execution simulator
   paper/         deterministic paper runner + append-only audit journal
   repro/         SHA-256 manifests + verification
 docs/            methods, architecture, status, recruiter review path
@@ -179,7 +188,7 @@ The private research tree contains source notes, exact indicator recipes, intern
 Public:
 
 - methodology and evidence governance;
-- generic state-machine architecture;
+- generic state-machine and risk architecture;
 - causal timing and execution semantics;
 - failed-holdout evidence;
 - pre-registered external-validation evidence, including contradictory results;
@@ -203,6 +212,7 @@ Not public:
 - [Current research status](docs/research_status.md)
 - [External historical validation result](research/external_validation_results_2017_2022_2026-09-12.md)
 - [Cross-exchange execution result](research/cross_exchange_execution_results_2017_2022_2026-09-12.md)
+- [Signal-source replication feasibility](research/signal_source_replication_feasibility_2026-09-12.md)
 - [Portfolio landing page](docs/portfolio_landing.md)
 - [Methodology](docs/methodology.md)
 - [Architecture](docs/architecture.md)
