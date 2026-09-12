@@ -1,0 +1,26 @@
+{
+  "date": "2026-09-13",
+  "classification": "PROSPECTIVE_ENGINEERING_CHECKPOINT_NO_PERFORMANCE",
+  "candidate_b_freeze_utc": "2026-09-12T02:00:00Z",
+  "producer_implementation": {
+    "version": "v1",
+    "status": "FROZEN_SEMANTIC_REGRESSION_PASS",
+    "code_sha256": "c2f2a47cf4a22d975a75c922eec3d0cb6d65664180fdf80246b302ac80ed8ceb",
+    "consumed_regression_campaign_timestamps": 45807,
+    "authority_critical_mismatches": 0,
+    "performance_read_or_computed_for_freeze": false
+  },
+  "operational_authorization": {
+    "status": "BLOCKED_PROSPECTIVE_INPUT_CONTINUITY_NOT_FROZEN",
+    "remaining_blockers": [
+      "FROZEN_WARMUP_SEED_THROUGH_CANDIDATE_FREEZE_NOT_YET_BOUND",
+      "FORWARD_BITSTAMP_STATE_ONLY_SOURCE_CHAIN_NOT_YET_BOUND"
+    ]
+  },
+  "failed_regression_attempt_preserved": true,
+  "external_v3_reclassified_as_prospective": false,
+  "candidate_b_status": "FROZEN_HYPOTHESIS_NOT_VALIDATED",
+  "v024_status": "INSUFFICIENT_FORWARD_EVIDENCE",
+  "validated_alpha_established": false,
+  "small_capital_live_eligible": false
+}
