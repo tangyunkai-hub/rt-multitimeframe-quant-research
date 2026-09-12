@@ -3,7 +3,7 @@
 **Frozen on:** 2026-09-12  
 **Purpose:** increase evidence outside the already-consumed 2023–2026 development/holdout history without mislabeling retrospective data as prospective evidence.
 
-> **Data-method amendment, frozen before external performance inspection:** `research/external_validation_data_method_amendment_2026-09-12.md`. The amendment changes native Binance higher-timeframe parity from a hard gate to a diagnostic after official 1m/15m/native archives were shown to disagree in a small number of old intervals. The canonical execution/feature chain is checksum-verified Binance 15m with deterministic quarantine of incomplete/off-grid derived windows. Strategy semantics and anti-overfit rules are unchanged.
+> **Data-method amendment, frozen before external performance inspection:** `research/external_validation_data_method_amendment_2026-09-12.md`. The amendment changes native Binance higher-timeframe parity from a hard gate to a diagnostic after official 1m/15m/native archives were shown to disagree in a small number of old intervals. The canonical execution/feature chain is checksum-verified Binance 15m. Exchange-maintenance cadence gaps are logged and never filled; only candles containing ambiguous off-grid restart bars are quarantined before indicator computation. Strategy semantics and anti-overfit rules are unchanged.
 
 ## Evidence classification
 
@@ -43,12 +43,13 @@ Before any strategy evaluation:
 - duplicate-timestamp audit;
 - OHLC envelope audit;
 - cadence/gap report;
-- canonical 15m-derived 2h/8h/72h feature-window validity mask;
+- canonical 15m-derived 30m/1h/2h/4h/8h/12h/1d/72h/weekly audit ledger;
+- deterministic off-grid-input quarantine mask;
 - native 2h/8h/3d Binance parity retained as a diagnostic rather than an eligibility veto, per the frozen amendment;
 - source URL/hash manifest;
 - normalized output hashes.
 
-Any hard source-integrity failure blocks strategy evaluation. Incomplete or off-grid derived higher-timeframe windows are deterministically quarantined and cannot emit new signals.
+Any hard source-integrity failure blocks strategy evaluation. Exchange-maintenance cadence gaps are not filled and remain audit-visible; only off-grid-input derived candles are quarantined and cannot enter indicator computation or emit new signals.
 
 ## Frozen strategy rule
 
