@@ -63,16 +63,57 @@
     "eth_two_sided_exact_signflip_p": 0.25,
     "formal_significance_claim": false
   },
-  "cross_asset_interpretation": "HETEROGENEOUS_BTC_ADVERSE_ETH_SUPPORTIVE_NO_UNIFORM_REPLICATION",
+  "cross_exchange_coinbase_2017_2022": {
+    "classification": "CROSS_EXCHANGE_EXECUTION_ROBUSTNESS_NOT_PROSPECTIVE",
+    "status": "COMPLETE",
+    "protocol": "research/cross_exchange_execution_prereg_2026-09-12.md",
+    "results_document": "research/cross_exchange_execution_results_2017_2022_2026-09-12.md",
+    "data_run_id": 34699255006,
+    "data_artifact_id": 10299497700,
+    "data_artifact_digest": "sha256:8fc7692bd5497a154be6867f79388fde9943ecb7d70ed8b8607b9c3f61403d42",
+    "frozen_evaluator_commit_before_result_read": "df2f8bf6e41c2656a1da89c2f9e154130c8d9a24",
+    "data_integrity": {
+      "failed_series": 0,
+      "btc_rows": 188260,
+      "eth_rows": 188348,
+      "btc_gap_events": 30,
+      "btc_missing_15m_intervals": 188,
+      "eth_gap_events": 25,
+      "eth_missing_15m_intervals": 100,
+      "missing_bars_synthetically_filled": false
+    },
+    "btc": {
+      "coinbase_mechanism_judgement": "ADVERSE_EXTERNAL_MECHANISM_EVIDENCE",
+      "locked_binance_judgement": "ADVERSE_EXTERNAL_MECHANISM_EVIDENCE",
+      "venue_verdict": "VENUE_CONSISTENT",
+      "paired_delta_log_7bp_one_way": -0.16867479725633244,
+      "label_stable_at_7_9_12bp_one_way": true,
+      "segment_sign_concordance_binance_coinbase": 1.0,
+      "epoch_sign_concordance_binance_coinbase": 1.0
+    },
+    "eth": {
+      "coinbase_mechanism_judgement": "EXTERNAL_MECHANISM_SUPPORT",
+      "locked_binance_judgement": "EXTERNAL_MECHANISM_SUPPORT",
+      "venue_verdict": "VENUE_CONSISTENT",
+      "paired_delta_log_7bp_one_way": 0.15291726749530193,
+      "label_stable_at_7_9_12bp_one_way": true,
+      "segment_sign_concordance_binance_coinbase": 1.0,
+      "epoch_sign_concordance_binance_coinbase": 1.0
+    },
+    "interpretation": "BTC_ADVERSE_AND_ETH_SUPPORTIVE_HETEROGENEITY_IS_EXECUTION_VENUE_ROBUST",
+    "prospective_evidence": false
+  },
+  "cross_asset_interpretation": "HETEROGENEOUS_BTC_ADVERSE_ETH_SUPPORTIVE_NO_UNIFORM_REPLICATION_BUT_EXECUTION_VENUE_ROBUST",
   "candidate_b_status": "FROZEN_HYPOTHESIS_NOT_VALIDATED",
   "v024_status": "INSUFFICIENT_FORWARD_EVIDENCE",
   "validated_alpha_established": false,
   "small_capital_live_eligible": false,
   "results_document": "research/external_validation_results_2017_2022_2026-09-12.md",
-  "anti_overfit": "No strategy semantic, threshold, cost, sizing, or adapter change is permitted from these external historical results.",
+  "anti_overfit": "No strategy semantic, threshold, cost, sizing, adapter, or execution-venue rule change is permitted from these external historical results.",
   "next_actions": [
     "Preserve v0.24/v0.25 prospective gates as WAITING/INSUFFICIENT until genuinely post-freeze data arrive.",
-    "Continue non-prospective robustness and engineering work without changing Candidate B: cross-exchange/data-source robustness where causally comparable data are available; CI/reproducibility hardening; portfolio/report updates.",
+    "Continue non-prospective engineering work without changing Candidate B: deterministic paper-shadow hardening, reproducibility/CI hardening, portfolio/report updates.",
+    "Treat independent signal-source recreation as a separate future preregistered robustness question; do not conflate it with the completed execution-venue test.",
     "Do not pool BTC and ETH post hoc into a new confirmatory pass/fail rule."
   ]
 }
