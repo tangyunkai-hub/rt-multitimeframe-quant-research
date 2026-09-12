@@ -61,7 +61,6 @@ def grid_aligned_15m(ts: pd.Series) -> pd.Series:
 
 def resampler(s, label):
     if label == "1w":
-        # Match the frozen Binance weekly authority: Monday-ending, right-closed on availability time.
         return s.resample("W-MON", label="right", closed="right")
     return s.resample(FREQ[label], label="right", closed="right", origin="epoch")
 
@@ -73,6 +72,7 @@ def canonical_window_audit(base: pd.DataFrame, symbol: str):
 
     summaries = []
     invalid_rows = []
+    gap_rows = []
     for label, expected in EXPECTED.items():
         count = resampler(x["close"], label).count()
         grid_count = resampler(x["on_15m_grid"], label).sum()
@@ -92,15 +92,24 @@ def canonical_window_audit(base: pd.DataFrame, symbol: str):
         w["expected_count"] = expected
         w["complete_count"] = w["count"].eq(expected)
         w["all_on_grid"] = w["grid_count"].eq(w["count"])
-        w["valid"] = w["complete_count"] & w["all_on_grid"]
+        # Exchange-maintenance gaps are observed market closures, not synthetic-data holes.
+        # Only off-grid inputs make fixed wall-clock assignment ambiguous enough to quarantine.
+        w["valid"] = w["all_on_grid"]
 
-        bad = w[~w["valid"]]
-        for t, r in bad.iterrows():
-            reason = []
-            if not bool(r["complete_count"]):
-                reason.append("INCOMPLETE_COUNT")
-            if not bool(r["all_on_grid"]):
-                reason.append("OFF_GRID_INPUT")
+        for t, r in w[~w["complete_count"]].iterrows():
+            gap_rows.append({
+                "symbol": symbol,
+                "derived_interval": label,
+                "availability_time": t,
+                "observed_15m_count": int(r["count"]),
+                "expected_15m_count": int(expected),
+                "on_grid_15m_count": int(r["grid_count"]),
+                "first_input_open_time": r["first_open"],
+                "last_input_open_time": r["last_open"],
+                "status": "GAP_COUNT_DIAGNOSTIC_ONLY",
+            })
+
+        for t, r in w[~w["valid"]].iterrows():
             invalid_rows.append({
                 "symbol": symbol,
                 "derived_interval": label,
@@ -110,7 +119,7 @@ def canonical_window_audit(base: pd.DataFrame, symbol: str):
                 "on_grid_15m_count": int(r["grid_count"]),
                 "first_input_open_time": r["first_open"],
                 "last_input_open_time": r["last_open"],
-                "reason": "+".join(reason),
+                "reason": "OFF_GRID_INPUT",
             })
 
         summaries.append({
@@ -119,11 +128,11 @@ def canonical_window_audit(base: pd.DataFrame, symbol: str):
             "windows": int(len(w)),
             "valid_windows": int(w["valid"].sum()),
             "invalid_windows": int((~w["valid"]).sum()),
-            "incomplete_count_windows": int((~w["complete_count"]).sum()),
+            "gap_count_windows": int((~w["complete_count"]).sum()),
             "off_grid_input_windows": int((~w["all_on_grid"]).sum()),
             "valid_rate": float(w["valid"].mean()),
         })
-    return summaries, invalid_rows
+    return summaries, invalid_rows, gap_rows
 
 
 def manifest_failures(root: Path):
@@ -184,8 +193,7 @@ def main():
     root = Path(a.root)
 
     hard = manifest_failures(root) + integrity_failures(root)
-    summaries = []
-    invalid = []
+    summaries, invalid, gaps = [], [], []
     canonical_files = {}
     for symbol in ["BTCUSDT", "ETHUSDT"]:
         p = root / "binance" / f"{symbol}_15m_2017-2022.csv.gz"
@@ -194,16 +202,20 @@ def main():
             continue
         base = load_csv(p)
         canonical_files[symbol] = {"path": str(p.relative_to(root)), "sha256": sha256_file(p), "rows": int(len(base))}
-        s, bad = canonical_window_audit(base, symbol)
+        s, bad, gap = canonical_window_audit(base, symbol)
         summaries.extend(s)
         invalid.extend(bad)
+        gaps.extend(gap)
 
     summary_df = pd.DataFrame(summaries)
     invalid_df = pd.DataFrame(invalid)
+    gap_df = pd.DataFrame(gaps)
     summary_path = root / "canonical_feature_window_audit.csv"
     invalid_path = root / "canonical_invalid_feature_windows.csv"
+    gap_path = root / "canonical_gap_crossing_feature_windows.csv"
     summary_df.to_csv(summary_path, index=False)
     invalid_df.to_csv(invalid_path, index=False)
+    gap_df.to_csv(gap_path, index=False)
 
     out = {
         "status": "PASS" if not hard else "FAIL",
@@ -212,11 +224,13 @@ def main():
         "canonical_files": canonical_files,
         "hard_source_integrity_failures": len(hard),
         "hard_failures": hard,
-        "derived_feature_policy": "30m/1h/2h/4h/8h/12h/1d/72h/1w built causally from canonical 15m; exact count and UTC 15m grid required; invalid candles excluded before indicator computation; weekly authority uses Monday-ending frozen alignment; no interpolation or synthetic prices",
+        "derived_feature_policy": "30m/1h/2h/4h/8h/12h/1d/72h/1w built causally from canonical 15m; maintenance gap counts are diagnostic and never filled; only off-grid-input candles are quarantined before indicator computation; weekly authority uses Monday-ending frozen alignment",
         "native_binance_higher_tf_role": "DIAGNOSTIC_ONLY",
         "invalid_feature_windows_are_quarantined": True,
+        "gap_count_windows_are_diagnostic_only": True,
         "feature_window_audit_sha256": sha256_file(summary_path),
         "invalid_window_ledger_sha256": sha256_file(invalid_path),
+        "gap_window_ledger_sha256": sha256_file(gap_path),
     }
     (root / "CANONICAL_CHAIN_AUDIT.json").write_text(json.dumps(out, indent=2, default=str))
     print(summary_df.to_string(index=False))
