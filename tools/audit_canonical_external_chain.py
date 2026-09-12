@@ -27,7 +27,6 @@ FREQ = {
     "12h": pd.Timedelta(hours=12),
     "1d": pd.Timedelta(days=1),
     "72h": pd.Timedelta(hours=72),
-    "1w": pd.Timedelta(days=7),
 }
 
 
@@ -60,6 +59,13 @@ def grid_aligned_15m(ts: pd.Series) -> pd.Series:
     return (ns % step).eq(0)
 
 
+def resampler(s, label):
+    if label == "1w":
+        # Match the frozen Binance weekly authority: Monday-ending, right-closed on availability time.
+        return s.resample("W-MON", label="right", closed="right")
+    return s.resample(FREQ[label], label="right", closed="right", origin="epoch")
+
+
 def canonical_window_audit(base: pd.DataFrame, symbol: str):
     x = base.copy()
     x["on_15m_grid"] = grid_aligned_15m(x["open_time"])
@@ -68,14 +74,13 @@ def canonical_window_audit(base: pd.DataFrame, symbol: str):
     summaries = []
     invalid_rows = []
     for label, expected in EXPECTED.items():
-        freq = FREQ[label]
-        count = x["close"].resample(freq, label="right", closed="right", origin="epoch").count()
-        grid_count = x["on_15m_grid"].resample(freq, label="right", closed="right", origin="epoch").sum()
-        first_open = x["open_time"].resample(freq, label="right", closed="right", origin="epoch").min()
-        last_open = x["open_time"].resample(freq, label="right", closed="right", origin="epoch").max()
-        agg = x[["open", "high", "low", "close", "volume"]].resample(
-            freq, label="right", closed="right", origin="epoch"
-        ).agg({"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"})
+        count = resampler(x["close"], label).count()
+        grid_count = resampler(x["on_15m_grid"], label).sum()
+        first_open = resampler(x["open_time"], label).min()
+        last_open = resampler(x["open_time"], label).max()
+        agg = resampler(x[["open", "high", "low", "close", "volume"]], label).agg(
+            {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}
+        )
 
         w = pd.DataFrame({
             "count": count,
@@ -207,7 +212,7 @@ def main():
         "canonical_files": canonical_files,
         "hard_source_integrity_failures": len(hard),
         "hard_failures": hard,
-        "derived_feature_policy": "30m/1h/2h/4h/8h/12h/1d/72h/1w built causally from canonical 15m; exact count and UTC 15m grid required; invalid candles excluded before indicator computation; no interpolation or synthetic prices",
+        "derived_feature_policy": "30m/1h/2h/4h/8h/12h/1d/72h/1w built causally from canonical 15m; exact count and UTC 15m grid required; invalid candles excluded before indicator computation; weekly authority uses Monday-ending frozen alignment; no interpolation or synthetic prices",
         "native_binance_higher_tf_role": "DIAGNOSTIC_ONLY",
         "invalid_feature_windows_are_quarantined": True,
         "feature_window_audit_sha256": sha256_file(summary_path),
