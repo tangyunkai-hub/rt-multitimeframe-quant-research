@@ -1,9 +1,16 @@
 from datetime import date
+import importlib.util
+from pathlib import Path
 import urllib.error
 
 import pandas as pd
 
-from tools import download_forward_native_data as forward
+
+_SCRIPT = Path(__file__).resolve().parents[1] / "tools" / "download_forward_native_data.py"
+_SPEC = importlib.util.spec_from_file_location("rtquant_forward_native_data_tool", _SCRIPT)
+assert _SPEC is not None and _SPEC.loader is not None
+forward = importlib.util.module_from_spec(_SPEC)
+_SPEC.loader.exec_module(forward)
 
 
 def _frame_for_day(source_day: date, interval_seconds: int = 900) -> pd.DataFrame:
