@@ -3,7 +3,7 @@ from .prospective import (
     CANDIDATE_B_FREEZE_UTC,
     ProspectiveFloorStatus,
     assess_candidate_b_information_floor,
-    evaluate_candidate_b_prospectively,
+    prospective_release_gate,
 )
 
 __all__ = [
@@ -11,5 +11,5 @@ __all__ = [
     "CANDIDATE_B_FREEZE_UTC",
     "ProspectiveFloorStatus",
     "assess_candidate_b_information_floor",
-    "evaluate_candidate_b_prospectively",
+    "prospective_release_gate",
 ]
