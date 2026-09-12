@@ -3,5 +3,15 @@
   "research_status": "NOT_DEPLOYMENT_READY",
   "holdout_status": "FAIL",
   "candidate_status": "FROZEN_HYPOTHESIS_NOT_VALIDATED",
+  "prospective_v024_status": "INSUFFICIENT_FORWARD_EVIDENCE",
+  "external_historical_validation": {
+    "classification": "EXTERNAL_HISTORICAL_VALIDATION_NOT_PROSPECTIVE",
+    "status": "COMPLETE",
+    "btc": "ADVERSE_EXTERNAL_MECHANISM_EVIDENCE",
+    "eth": "EXTERNAL_MECHANISM_SUPPORT",
+    "cross_asset": "HETEROGENEOUS_NO_UNIFORM_REPLICATION"
+  },
+  "validated_alpha_established": false,
+  "small_capital_live_eligible": false,
   "public_scope": "generic event/state research architecture; proprietary signal generation omitted"
 }
