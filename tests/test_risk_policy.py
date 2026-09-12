@@ -1,4 +1,3 @@
-import math
 import pytest
 
 from rtquant.risk import RiskBudgetPolicy, allocate_exposure
@@ -13,8 +12,12 @@ def test_multiple_hedge_reasons_use_max_not_sum():
     plan = allocate_exposure(
         p, core_side="LONG", reduced=True, hedge_reasons=["local", "higher"]
     )
-    assert plan.authorized_hedge_fraction == 0.25
-    assert plan.core_long == 0.75 * plan.gross_scale or plan.core_long == pytest.approx(0.8 * plan.gross_scale)
+    # Core is reduced once to 0.80; hedge authorization is max(0.10, 0.25),
+    # never 0.35. Gross 1.05 is then proportionally scaled to the cap.
+    assert plan.authorized_hedge_fraction == pytest.approx(0.25)
+    assert plan.gross_scale == pytest.approx(1.0 / 1.05)
+    assert plan.core_long == pytest.approx(0.80 / 1.05)
+    assert plan.hedge_short == pytest.approx(0.25 / 1.05)
     assert plan.net_exposure >= 0
 
 
