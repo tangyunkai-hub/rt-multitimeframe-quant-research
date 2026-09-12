@@ -3,5 +3,11 @@ __pycache__/
 *.pyc
 .pytest_cache/
 artifacts/runs/
+forward_native_data/
+runtime/
+*.paper.jsonl
+*.paper.jsonl.lock
+*.paper.jsonl.checkpoint.json
+*.paper.jsonl.sessions.jsonl
 .DS_Store
 .env
