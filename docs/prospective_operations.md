@@ -1,82 +1,73 @@
 # Prospective Operations Runbook
 
-This runbook describes the operational boundary between public data intake, the private frozen state engine, the prospective information gate, and the brokerless paper journal. It does **not** authorize strategy retuning or performance inspection.
+This runbook separates source collection, consumed-state initialization, the private frozen state engine, the information gate and the brokerless paper journal. It never authorizes strategy retuning or early performance inspection.
 
-## 1. Public forward native-data intake
+## 1. Forward source intake
 
-The `forward-native-data` GitHub Actions workflow collects checksum-verified Binance Spot native archives after the Candidate B freeze boundary (`2026-09-12T02:00:00Z`). It is data-only: `performance_evaluation_allowed=false` and `candidate_b_judgement_allowed=false` are enforced by a separate always-run workflow step.
+`forward-native-data` collects two causally distinct sources under the same run cutoff:
 
-Two collection modes are deliberately different:
+- Binance Spot native data: execution/signal source under the frozen architecture;
+- Bitstamp BTCUSD 12h/1d: **state-only** higher-timeframe source. `price_pnl_use_allowed=false` is a hard gate.
 
-- `monitor` is the scheduled bounded-overlap health check. It re-reads only enough history to cover the longest native bar plus one day and must **not** be treated as the complete forward evidence pool.
-- `full` rebuilds the complete frozen-forward pool from the preregistered overlap start and is the audit mode to use when a complete data snapshot is required.
-
-Examples:
+Both collectors preserve `performance_evaluation_allowed=false` and `candidate_b_judgement_allowed=false`. Formal state production requires `mode=full` and `FULL_REBUILD_COMPLETE_FORWARD_POOL`; `monitor` is only a bounded-overlap health check.
 
 ```bash
-python tools/download_forward_native_data.py --mode monitor
-python tools/download_forward_native_data.py --mode full --end-date 2026-10-31
+python tools/download_forward_native_data.py --mode full --out runtime/forward_native_full --end-date 2026-10-31
+python tools/download_forward_bitstamp_state.py --mode full --out runtime/forward_native_full --end-date 2026-10-31
 ```
 
-A dense daily archive missing for the latest requested source day is `WAITING_SOURCE_ARCHIVE_PUBLICATION`, not a PASS based on stale rows. A missing older dense archive is a hard integrity failure. Sparse 3d/1w daily archive 404s are treated separately because those intervals do not open a new native bar every UTC day.
+Missing/stale sources remain WAITING or FAIL; they are never silently filled or interpolated.
 
-The operational policy also waits until there is a fully completed UTC calendar day after the freeze date before starting the forward pool. With the current freeze boundary, the first fully post-freeze source day is **2026-09-13 UTC**; a scheduled run can only ingest that completed day afterward.
+## 2. Consumed pre-freeze warm-up seed
 
-## 2. Private frozen state generation
+Long-memory indicator/state construction cannot begin from a few post-freeze days. A separate data-only workflow therefore builds a seed from data whose availability is **at or before** the Candidate B freeze boundary `2026-09-12T02:00:00Z`.
 
-Exact proprietary signal construction remains outside the public repository. The private frozen engine may consume the verified native data and produce a forward state ledger with only the fields required by the public information-floor counter:
+The seed is classified `V024_CONSUMED_PRE_FREEZE_WARMUP_SEED` and must state:
+
+- performance evaluation disabled;
+- Candidate B judgement disabled;
+- prospective evidence rows = 0;
+- exact file SHA-256 values and a seed-root SHA-256.
+
+The seed only initializes state. No pre-freeze row can enter the released forward state ledger or the v0.24 information counts.
+
+## 3. Private frozen state producer
+
+The proprietary producer stays outside the public repository. Public code commits only its exact SHA-256. The frozen v1 implementation passed consumed semantic regression on 45,807 campaign timestamps with zero authority-critical state/action mismatches; this is implementation evidence, not Alpha evidence.
+
+After the warm-up seed is hash-bound, operational invocation is conceptually:
+
+```bash
+rtquant-prospective-intake \
+  --private-producer /private/v024_prospective_signal_producer_v1.py \
+  --warmup-seed /private/v024_warmup_seed \
+  --warmup-contract /private/v024_warmup_seed/WARMUP_SEED_CONTRACT.json
+```
+
+The state ledger remains minimal:
 
 ```text
 timestamp,A_core,B_core,major_bear_epoch_id
 ```
 
-The state ledger is operational research material. Keep it under an ignored local path such as `runtime/`; do not commit live forward state or paper journals to the public repository.
+## 4. Frozen prospective information gate
 
-## 3. Frozen prospective information gate
+`rtquant-prospective-gate` has no threshold override flags. Formal v0.24 evaluation remains embargoed until all frozen floors are satisfied: at least 180 forward days, 6 A/B divergence segments and 3 independent Major Bear divergence epochs. Reaching the floor only authorizes the separately frozen private evaluator; it does not auto-declare success.
 
-After installing the package, run:
+## 5. Brokerless paper operation
 
-```bash
-rtquant-prospective-gate --input runtime/candidate_b_forward_states.csv
-```
+`rtquant-paper` wemains brokerless. Its append-only hash chain, deterministic restart, idempotent retry and changed-history hard failure are engineering controls only. Operational output does not release equity/PnL while the prospective embargo is active.
 
-The CLI intentionally exposes **no threshold override flags**. The frozen public floor remains:
-
-- at least 180 forward days;
-- at least 6 A/B divergence segments;
-- at least 3 independent Major Bear divergence epochs.
-
-Before all three conditions are met, the output keeps `performance=null` and returns `KEEP_PERFORMANCE_EMBARGOED`. When all three are met, the only authorization is `RUN_SEPARATELY_FROZEN_PRIVATE_V024_EVALUATOR`. The public CLI still does not compute Candidate A/B performance.
-
-## 4. Brokerless paper operation
-
-The paper CLI accepts validated CSV/JSONL bars and writes the hash-chained single-writer journal locally:
-
-```bash
-rtquant-paper ingest \
-  --journal runtime/candidate_b.paper.jsonl \
-  --input runtime/paper_bars.csv
-
-rtquant-paper status --journal runtime/candidate_b.paper.jsonl
-```
-
-The CLI has no broker or live-order route. User-visible output is allowlisted and does not release equity, PnL, return, turnover, or other performance fields while the prospective embargo is active. Internal deterministic state may still contain the equity field required for execution parity and journal verification; it is not released by the operational CLI.
-
-Equivalent retry of the last processed bar is idempotent. A changed same-timestamp bar, non-monotonic replay, journal tampering, unexpected journal byte change, or concurrent writer causes the operation to fail closed.
-
-## 5. Evidence governance
-
-The operational chain is:
+## 6. Evidence governance
 
 ```text
-checksum-verified native data
-        ↓
-private frozen state engine
-        ↓
-public information-floor counter (no performance)
-        ↓
-[only after frozen floor is met]
-separately frozen private v0.24 evaluator
+consumed pre-freeze warm-up seed ─┐
+post-freeze Binance full source ──┼─> private frozen state producer
+post-freeze Bitstamp state-only ──┘              ↓
+                                      public information-floor gate
+                                                  ↓
+                                  [only after frozen floor is met]
+                                   frozen private v0.24 evaluator
 ```
 
-Historical or external validation is never relabeled as prospective evidence. No strategy semantic, threshold, cost convention, or sizing rule may change because of forward performance. Any strategy-defining change creates a new candidate/version and requires a new freeze boundary.
+Historical/external evidence is never relabeled as prospective evidence. Bitstamp prices never enter Binance PnL. Any strategy-semantic change requires a new version, freeze and validation pool.

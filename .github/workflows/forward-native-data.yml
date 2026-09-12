@@ -12,14 +12,13 @@ on:
         required: false
         default: monitor
         type: choice
-        options:
-          - monitor
-          - full
+        options: [monitor, full]
   schedule:
     - cron: '25 3 * * *'
   push:
     paths:
       - 'tools/download_forward_native_data.py'
+      - 'tools/download_forward_bitstamp_state.py'
       - '.github/workflows/forward-native-data.yml'
 
 permissions:
@@ -35,50 +34,40 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install pandas
-      - name: Collect checksum-verified post-freeze native data
+      - name: Collect post-freeze Binance native data and Bitstamp state-only data
         shell: bash
         run: |
-          MODE="${{ inputs.mode }}"
-          if [ -z "$MODE" ]; then
-            MODE=monitor
-          fi
+          MODE="${{ inputs.mode }}"; [ -z "$MODE" ] && MODE=monitor
           ARGS=(--out forward_native_data --mode "$MODE")
-          if [ -n "${{ inputs.end_date }}" ]; then
-            ARGS+=(--end-date "${{ inputs.end_date }}")
-          fi
+          if [ -n "${{ inputs.end_date }}" ]; then ARGS+=(--end-date "${{ inputs.end_date }}"); fi
           python tools/download_forward_native_data.py "${ARGS[@]}"
-      - name: Show data-only gate
+          python tools/download_forward_bitstamp_state.py "${ARGS[@]}"
+      - name: Show data-only gates
         if: always()
         run: |
           cat forward_native_data/DATA_GATE.json || true
           cat forward_native_data/integrity.csv || true
-      - name: Enforce forward data-only gate
+          cat forward_native_data/bitstamp/DATA_GATE.json || true
+          cat forward_native_data/bitstamp/integrity.csv || true
+      - name: Enforce data-only and state-only gates
         if: always()
         shell: bash
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-
-          gate_path = Path("forward_native_data/DATA_GATE.json")
-          if not gate_path.exists():
-              raise SystemExit("DATA_GATE.json missing; collector did not produce an auditable gate")
-
-          gate = json.loads(gate_path.read_text(encoding="utf-8"))
-          allowed = {
-              "PASS",
-              "PASS_WITH_EXPECTED_EARLY_WAITING_INTERVALS",
-              "WAITING_NO_COMPLETED_POST_FREEZE_UTC_DAY",
-              "WAITING_SOURCE_ARCHIVE_PUBLICATION",
-          }
-          status = gate.get("status")
-          if status not in allowed:
-              raise SystemExit(f"forward data-only gate rejected status: {status!r}")
-          if gate.get("performance_evaluation_allowed") is not False:
-              raise SystemExit("forward collector must keep performance evaluation embargoed")
-          if gate.get("candidate_b_judgement_allowed") is not False:
-              raise SystemExit("forward collector must keep Candidate B judgement embargoed")
-          print(f"forward data-only gate accepted: {status}")
+          allowed={'PASS','PASS_WITH_EXPECTED_EARLY_WAITING_INTERVALS','WAITING_NO_COMPLETED_POST_FREEZE_UTC_DAY','WAITING_SOURCE_ARCHIVE_PUBLICATION','WAITING_FIRST_COMPLETED_STATE_BAR'}
+          for rel in ('DATA_GATE.json','bitstamp/DATA_GATE.json'):
+              p=Path('forward_native_data')/rel
+              if not p.exists(): raise SystemExit(f'{rel} missing')
+              g=json.loads(p.read_text())
+              if g.get('status') not in allowed: raise SystemExit(f'{rel} rejected status {g.get("status")!r}')
+              if g.get('performance_evaluation_allowed') is not False: raise SystemExit(f'{rel} performance embargo failed')
+              if g.get('candidate_b_judgement_allowed') is not False: raise SystemExit(f'{rel} Candidate B embargo failed')
+          b=json.loads((Path('forward_native_data')/'bitstamp'/'DATA_GATE.json').read_text())
+          if b.get('state_only') is not True or b.get('price_pnl_use_allowed') is not False:
+              raise SystemExit('Bitstamp must remain state-only and excluded from PnL')
+          print('forward source gates accepted')
           PY
       - name: Upload forward data-only artifact
         if: always()

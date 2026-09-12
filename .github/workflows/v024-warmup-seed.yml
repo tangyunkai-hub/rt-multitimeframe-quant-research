@@ -1,0 +1,45 @@
+name: v024-warmup-seed
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tools/build_v024_warmup_seed.py'
+      - '.github/workflows/v024-warmup-seed.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  freeze-seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pandas
+      - name: Build consumed pre-freeze warmup seed
+        run: python tools/build_v024_warmup_seed.py --out v024_warmup_seed
+      - name: Enforce non-prospective warmup boundary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('v024_warmup_seed/WARMUP_SEED_CONTRACT.json')
+          c=json.loads(p.read_text())
+          assert c['status']=='PASS'
+          assert c['classification']=='V024_CONSUMED_PRE_FREEZE_WARMUP_SEED'
+          assert c['performance_evaluation_allowed'] is False
+          assert c['candidate_b_judgement_allowed'] is False
+          assert c['prospective_evidence_rows']==0
+          assert c['candidate_freeze_boundary_utc_inclusive_for_warmup']=='2026-09-12T02:00:00+00:00'
+          print(c['seed_root_sha256'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rt-v024-consumed-warmup-seed
+          path: v024_warmup_seed
+          retention-days: 30
+          compression-level: 6
