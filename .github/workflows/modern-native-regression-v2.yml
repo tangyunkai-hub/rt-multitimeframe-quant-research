@@ -1,0 +1,42 @@
+name: modern-native-regression-v2
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tools/download_modern_native_regression_v2.py'
+      - '.github/workflows/modern-native-regression-v2.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pandas numpy
+      - name: Download checksum-verified modern native timeframes
+        id: collect
+        continue-on-error: true
+        run: python tools/download_modern_native_regression_v2.py --out modern_native_regression_v2
+      - name: Show data gate
+        if: always()
+        run: |
+          cat modern_native_regression_v2/DATA_GATE.json || true
+          cat modern_native_regression_v2/integrity.csv || true
+      - name: Upload regression data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rt-modern-native-regression-v2
+          path: modern_native_regression_v2
+          retention-days: 14
+          compression-level: 6
+      - name: Enforce data integrity
+        if: steps.collect.outcome != 'success'
+        run: exit 1
