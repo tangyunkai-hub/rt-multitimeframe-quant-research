@@ -1,0 +1,7 @@
+{
+  "release": "public-rc1",
+  "research_status": "NOT_DEPLOYMENT_READY",
+  "holdout_status": "FAIL",
+  "candidate_status": "FROZEN_HYPOTHESIS_NOT_VALIDATED",
+  "public_scope": "generic event/state research architecture; proprietary signal generation omitted"
+}
