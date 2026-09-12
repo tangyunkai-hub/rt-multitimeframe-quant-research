@@ -7,6 +7,7 @@ on:
       - 'tools/download_modern_native_regression_v2.py'
       - '.github/workflows/modern-native-regression-v2.yml'
 
+# Audit retrigger after Binance 2025+ timestamp-unit hardening.
 permissions:
   contents: read
 
