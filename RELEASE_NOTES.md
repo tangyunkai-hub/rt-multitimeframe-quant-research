@@ -1,8 +1,21 @@
-# Public RC1 Release Notes
+# Public RC2 Release Notes
 
 ## Purpose
 
-This release candidate is the public-safe portfolio view of the RT Quant Research project. It is intentionally not the private research source tree.
+RC2 improves the public portfolio and reviewer experience without changing strategy logic, candidate semantics, or research conclusions.
+
+This remains a **public-safe portfolio view** of the RT Quant Research project, not the private research source tree.
+
+## What changed from RC1
+
+- redesigned the README as a recruiter/researcher landing page;
+- added CI, Python-version, research-status, and validation badges;
+- added a public Mermaid architecture diagram;
+- added a five-minute code-review path;
+- added an explicit research-status / unresolved-gates page;
+- added a recruiter/reviewer guide;
+- clarified Candidate B and Long prospective evidence floors;
+- bumped package metadata to `0.1.0rc2`.
 
 ## Included
 
@@ -28,9 +41,15 @@ This release candidate is the public-safe portfolio view of the RT Quant Researc
 
 ## Research status
 
-- frozen holdout: FAIL;
-- post-holdout Candidate B: frozen, not validated;
-- prospective evidence: insufficient;
-- deployment readiness: NO.
+- frozen holdout: **FAIL**;
+- post-holdout Candidate B: **frozen, not validated**;
+- prospective evidence: **insufficient**;
+- deployment readiness: **NO**.
 
-This release candidate is designed to demonstrate research process, causal engineering, and validation discipline rather than to publish a production trading strategy.
+The frozen holdout remains approximately:
+
+- return: **-21.61%**;
+- Sharpe: **-1.15**;
+- maximum drawdown: **-38.02%**.
+
+RC2 is a presentation and documentation release. It does not reinterpret, retune, or rescue any strategy result.
