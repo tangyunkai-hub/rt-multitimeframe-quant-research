@@ -9,6 +9,7 @@ import urllib.request
 import zipfile
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from typing import Callable, Mapping
 
 import pandas as pd
 
@@ -32,8 +33,19 @@ TFSEC = {
     "1w": 604800,
 }
 INTERVALS = list(TFSEC)
+DENSE_DAILY_ARCHIVE_INTERVALS = {
+    interval for interval, seconds in TFSEC.items() if seconds <= 86400
+}
 MICROSECOND_EPOCH_THRESHOLD = 10**14
 FROZEN_FORWARD_BOUNDARY = pd.Timestamp("2026-09-12T02:00:00Z")
+MAX_NATIVE_BAR_DAYS = max(TFSEC.values()) // 86400
+MONITOR_LOOKBACK_DAYS = MAX_NATIVE_BAR_DAYS + 1
+ALLOWED_NONFAIL_GATE_STATUSES = {
+    "PASS",
+    "PASS_WITH_EXPECTED_EARLY_WAITING_INTERVALS",
+    "WAITING_NO_COMPLETED_POST_FREEZE_UTC_DAY",
+    "WAITING_SOURCE_ARCHIVE_PUBLICATION",
+}
 
 
 def sha256_bytes(data: bytes) -> str:
@@ -41,13 +53,16 @@ def sha256_bytes(data: bytes) -> str:
 
 
 def get(url: str) -> bytes:
-    req = urllib.request.Request(url, headers={"User-Agent": "rtquant-forward-data/1.0"})
+    req = urllib.request.Request(url, headers={"User-Agent": "rtquant-forward-data/2.0"})
     with urllib.request.urlopen(req, timeout=60) as response:
         return response.read()
 
 
 def checksum(text: str) -> str:
-    return text.strip().splitlines()[0].replace("*", " ").split()[0].lower()
+    lines = text.strip().splitlines()
+    if not lines:
+        raise ValueError("empty checksum response")
+    return lines[0].replace("*", " ").split()[0].lower()
 
 
 def parse_spot_epoch(values: pd.Series) -> pd.Series:
@@ -95,10 +110,35 @@ def default_end_date() -> date:
     return datetime.now(timezone.utc).date() - timedelta(days=1)
 
 
-def write_waiting_summary(out: Path, symbol: str, end_day: date) -> None:
+def resolve_fetch_start(mode: str, end_day: date) -> date:
+    if mode not in {"monitor", "full"}:
+        raise ValueError(f"unsupported mode: {mode}")
+    full_start = FROZEN_FORWARD_BOUNDARY.date() - timedelta(days=MAX_NATIVE_BAR_DAYS)
+    if mode == "full":
+        return full_start
+    return max(full_start, end_day - timedelta(days=MONITOR_LOOKBACK_DAYS))
+
+
+def classify_404(interval: str, source_day: date, end_day: date) -> str:
+    if interval not in DENSE_DAILY_ARCHIVE_INTERVALS:
+        return "404_SPARSE_INTERVAL_NO_BAR_OPEN_ON_DAY"
+    if source_day == end_day:
+        return "WAITING_SOURCE_ARCHIVE_PUBLICATION"
+    return "FAIL_MISSING_EXPECTED_DENSE_ARCHIVE"
+
+
+def _data_scope(mode: str) -> str:
+    if mode == "full":
+        return "FULL_REBUILD_COMPLETE_FORWARD_POOL"
+    return "MONITOR_BOUNDED_OVERLAP_NOT_COMPLETE_FORWARD_POOL"
+
+
+def write_waiting_summary(out: Path, symbol: str, end_day: date, mode: str) -> dict:
     summary = {
         "status": "WAITING_NO_COMPLETED_POST_FREEZE_UTC_DAY",
         "classification": "POST_FREEZE_NATIVE_DATA_INTAKE_DATA_ONLY",
+        "mode": mode,
+        "data_scope": _data_scope(mode),
         "symbol": symbol,
         "freeze_boundary_utc_exclusive": FROZEN_FORWARD_BOUNDARY.isoformat(),
         "completed_source_day_end_utc": end_day.isoformat(),
@@ -106,60 +146,88 @@ def write_waiting_summary(out: Path, symbol: str, end_day: date) -> None:
         "candidate_b_judgement_allowed": False,
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
     }
+    out.mkdir(parents=True, exist_ok=True)
     (out / "DATA_GATE.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(json.dumps(summary, indent=2), flush=True)
+    return summary
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--out", default="forward_native_data")
-    parser.add_argument("--symbol", default="BTCUSDT")
-    parser.add_argument("--end-date", default=None, help="inclusive UTC YYYY-MM-DD; defaults to yesterday")
-    args = parser.parse_args()
+def derive_overall_status(
+    *,
+    complete_shape: bool,
+    hard_failed_series: int,
+    hard_source_gaps: int,
+    end_day_publication_missing_intervals: list[str],
+    waiting_series: list[str],
+) -> str:
+    if not complete_shape or hard_failed_series or hard_source_gaps:
+        return "FAIL"
+    if end_day_publication_missing_intervals:
+        return "WAITING_SOURCE_ARCHIVE_PUBLICATION"
+    if waiting_series:
+        return "PASS_WITH_EXPECTED_EARLY_WAITING_INTERVALS"
+    return "PASS"
 
-    out = Path(args.out)
+
+def collect_forward_data(
+    *,
+    out: Path,
+    symbol: str,
+    end_day: date,
+    mode: str,
+    archive_loader: Callable[[str], tuple[pd.DataFrame, str]] = verified_archive,
+    tfsec: Mapping[str, int] = TFSEC,
+) -> dict:
+    out = Path(out)
     data_dir = out / "binance"
     data_dir.mkdir(parents=True, exist_ok=True)
 
-    end_day = date.fromisoformat(args.end_date) if args.end_date else default_end_date()
+    # Preserve the preregistered operational rule: do not start the forward pool
+    # until there is a fully completed UTC calendar day after the freeze date.
     if pd.Timestamp(end_day, tz="UTC") <= FROZEN_FORWARD_BOUNDARY.normalize():
-        write_waiting_summary(out, args.symbol, end_day)
-        return
+        return write_waiting_summary(out, symbol, end_day, mode)
 
-    # Fetch far enough back to capture a long native bar that opened before the
-    # freeze but only became closed-bar available afterward.
-    max_tf_days = max(TFSEC.values()) // 86400
-    fetch_start = FROZEN_FORWARD_BOUNDARY.date() - timedelta(days=max_tf_days)
+    fetch_start = resolve_fetch_start(mode, end_day)
     availability_cutoff = pd.Timestamp(end_day, tz="UTC") + pd.Timedelta(days=1)
 
     manifest = []
     audits = []
-    for interval, seconds in TFSEC.items():
+    end_day_publication_missing: set[str] = set()
+    hard_source_gaps = []
+
+    for interval, seconds in tfsec.items():
         frames = []
-        for day in day_iter(fetch_start, end_day):
-            ds = day.isoformat()
-            name = f"{args.symbol}-{interval}-{ds}.zip"
-            url = f"{DAILY}/{args.symbol}/{interval}/{name}"
+        for source_day in day_iter(fetch_start, end_day):
+            ds = source_day.isoformat()
+            name = f"{symbol}-{interval}-{ds}.zip"
+            url = f"{DAILY}/{symbol}/{interval}/{name}"
             try:
-                frame, digest = verified_archive(url)
+                frame, digest = archive_loader(url)
             except urllib.error.HTTPError as exc:
-                if exc.code == 404:
-                    manifest.append({
-                        "source": "daily",
-                        "symbol": args.symbol,
-                        "interval": interval,
-                        "period": ds,
-                        "url": url,
-                        "sha256": None,
-                        "rows": 0,
-                        "status": "404_NO_BAR_OPEN_ON_DAY_OR_ARCHIVE_NOT_PRESENT",
-                    })
-                    continue
-                raise
+                if exc.code != 404:
+                    raise
+                missing_status = classify_404(interval, source_day, end_day)
+                record = {
+                    "source": "daily",
+                    "symbol": symbol,
+                    "interval": interval,
+                    "period": ds,
+                    "url": url,
+                    "sha256": None,
+                    "rows": 0,
+                    "status": missing_status,
+                }
+                manifest.append(record)
+                if missing_status == "WAITING_SOURCE_ARCHIVE_PUBLICATION":
+                    end_day_publication_missing.add(interval)
+                elif missing_status == "FAIL_MISSING_EXPECTED_DENSE_ARCHIVE":
+                    hard_source_gaps.append(record)
+                continue
+
             frames.append(frame)
             manifest.append({
                 "source": "daily",
-                "symbol": args.symbol,
+                "symbol": symbol,
                 "interval": interval,
                 "period": ds,
                 "url": url,
@@ -169,11 +237,17 @@ def main():
             })
 
         if not frames:
+            if interval in end_day_publication_missing:
+                status = "WAITING_SOURCE_ARCHIVE_PUBLICATION"
+            elif interval in DENSE_DAILY_ARCHIVE_INTERVALS:
+                status = "FAIL_NO_SOURCE_ROWS"
+            else:
+                status = "WAITING_FIRST_COMPLETED_NATIVE_BAR"
             audits.append({
                 "interval": interval,
                 "rows": 0,
                 "eligible_rows": 0,
-                "status": "FAIL_NO_SOURCE_ROWS",
+                "status": status,
             })
             continue
 
@@ -188,7 +262,6 @@ def main():
             "open_time", "availability_time", "open", "high", "low", "close",
             "volume", "number_of_trades",
         ]].copy()
-
         eligible = normalized[
             (normalized["availability_time"] > FROZEN_FORWARD_BOUNDARY)
             & (normalized["availability_time"] <= availability_cutoff)
@@ -206,7 +279,7 @@ def main():
             | (eligible["availability_time"] > availability_cutoff)
         )
 
-        path = data_dir / f"{args.symbol}_{interval}_forward.csv.gz"
+        path = data_dir / f"{symbol}_{interval}_forward.csv.gz"
         eligible.to_csv(path, index=False, compression="gzip")
         normalized_hash = sha256_bytes(path.read_bytes())
 
@@ -219,6 +292,9 @@ def main():
         )
         if hard_failure:
             status = "FAIL"
+        elif interval in end_day_publication_missing:
+            # Never allow yesterday's stale rows to make today's monitor look green.
+            status = "WAITING_SOURCE_ARCHIVE_PUBLICATION"
         elif len(eligible) == 0:
             status = "WAITING_FIRST_COMPLETED_NATIVE_BAR"
         else:
@@ -244,19 +320,31 @@ def main():
     pd.DataFrame(manifest).to_csv(out / "source_manifest.csv", index=False)
     audit = pd.DataFrame(audits)
     audit.to_csv(out / "integrity.csv", index=False)
-    hard_failed_series = audit[audit["status"] == "FAIL"] if len(audit) else audit
-    waiting_series = audit[audit["status"].str.startswith("WAITING")] if len(audit) else audit
 
-    complete_shape = len(audit) == len(INTERVALS)
-    if complete_shape and hard_failed_series.empty:
-        overall_status = "PASS" if waiting_series.empty else "PASS_WITH_EXPECTED_EARLY_WAITING_INTERVALS"
+    if len(audit):
+        hard_failed = audit[audit["status"].str.startswith("FAIL")]
+        waiting = audit[audit["status"].str.startswith("WAITING")]
     else:
-        overall_status = "FAIL"
+        hard_failed = audit
+        waiting = audit
+
+    waiting_series = waiting["interval"].tolist() if len(waiting) else []
+    missing_latest = sorted(end_day_publication_missing)
+    complete_shape = len(audit) == len(tfsec)
+    overall_status = derive_overall_status(
+        complete_shape=complete_shape,
+        hard_failed_series=int(len(hard_failed)),
+        hard_source_gaps=len(hard_source_gaps),
+        end_day_publication_missing_intervals=missing_latest,
+        waiting_series=waiting_series,
+    )
 
     summary = {
         "status": overall_status,
         "classification": "POST_FREEZE_NATIVE_DATA_INTAKE_DATA_ONLY",
-        "symbol": args.symbol,
+        "mode": mode,
+        "data_scope": _data_scope(mode),
+        "symbol": symbol,
         "freeze_boundary_utc_exclusive": FROZEN_FORWARD_BOUNDARY.isoformat(),
         "fetch_start_utc_date": fetch_start.isoformat(),
         "completed_source_day_end_utc": end_day.isoformat(),
@@ -264,16 +352,51 @@ def main():
         "eligibility_rule": "availability_time > freeze boundary and <= run cutoff",
         "performance_evaluation_allowed": False,
         "candidate_b_judgement_allowed": False,
-        "intervals": INTERVALS,
-        "hard_failed_series": int(len(hard_failed_series)),
-        "waiting_series": waiting_series["interval"].tolist() if len(waiting_series) else [],
+        "intervals": list(tfsec),
+        "hard_failed_series": int(len(hard_failed)),
+        "hard_source_gap_count": len(hard_source_gaps),
+        "source_publication_complete_for_end_day": not bool(missing_latest),
+        "source_publication_missing_intervals": missing_latest,
+        "waiting_series": waiting_series,
+        "monitor_lookback_days": MONITOR_LOOKBACK_DAYS if mode == "monitor" else None,
         "timestamp_unit_rule": "Binance Spot archive epoch magnitude: milliseconds below 1e14, microseconds at/above 1e14",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
     }
     (out / "DATA_GATE.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(json.dumps(summary, indent=2), flush=True)
+
     if overall_status == "FAIL":
         raise SystemExit("post-freeze native data integrity gate failed")
+    return summary
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--out", default="forward_native_data")
+    parser.add_argument("--symbol", default="BTCUSDT")
+    parser.add_argument(
+        "--end-date",
+        default=None,
+        help="inclusive UTC YYYY-MM-DD; defaults to yesterday",
+    )
+    parser.add_argument(
+        "--mode",
+        choices=("monitor", "full"),
+        default="monitor",
+        help=(
+            "monitor = bounded overlap for scheduled health checks; "
+            "full = complete frozen-forward rebuild for audit"
+        ),
+    )
+    args = parser.parse_args()
+
+    end_day = date.fromisoformat(args.end_date) if args.end_date else default_end_date()
+    collect_forward_data(
+        out=Path(args.out),
+        symbol=args.symbol,
+        end_day=end_day,
+        mode=args.mode,
+    )
 
 
 if __name__ == "__main__":
