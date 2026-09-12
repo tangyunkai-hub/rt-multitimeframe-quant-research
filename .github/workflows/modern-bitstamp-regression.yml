@@ -1,0 +1,34 @@
+name: modern-bitstamp-regression
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tools/download_modern_bitstamp_regression.py'
+      - '.github/workflows/modern-bitstamp-regression.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pandas numpy
+      - name: Download official Bitstamp modern state-source data
+        run: python tools/download_modern_bitstamp_regression.py --out modern_bitstamp_regression
+      - name: Show gate
+        if: always()
+        run: |
+          cat modern_bitstamp_regression/DATA_GATE.json || true
+          cat modern_bitstamp_regression/integrity.csv || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rt-modern-bitstamp-regression
+          path: modern_bitstamp_regression
+          retention-days: 14
