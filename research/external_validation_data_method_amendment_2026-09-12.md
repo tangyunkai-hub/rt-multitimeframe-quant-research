@@ -18,16 +18,16 @@ For Binance BTCUSDT and ETHUSDT:
 
 1. Official checksum-verified **15m** archives are the canonical execution and Binance feature-construction chain.
 2. Binance 2h, 8h and 3d/72h native archives are retained as **diagnostic reference products**, not competing sources that can veto the canonical chain.
-3. Binance 2h/8h/72h feature bars are constructed causally from canonical 15m observations using UTC epoch-aligned windows and closed-bar availability.
+3. Every Binance-derived strategy timeframe is constructed causally from canonical 15m observations using UTC epoch-aligned windows and closed-bar availability: **30m, 1h, 2h, 4h, 8h, 12h, 1d and 72h**. The same rule applies to any Binance-derived weekly authority used by the frozen engine.
 4. No lower-timeframe price is interpolated, forward-filled, backfilled, or synthetically created.
 5. Official 1m data used in the forensic reconciliation remains audit evidence only. It does not silently replace the checksum-verified 15m primary chain.
 6. Bitstamp BTCUSD/ETHUSD 12h/1d remain state-confirmation inputs only; their absolute prices are never mixed into Binance PnL.
 
 ## Frozen maintenance and irregular-bar rule
 
-A derived Binance 2h/8h/72h feature window is **VALID** only when all of the following hold:
+A derived Binance feature window is **VALID** only when all of the following hold:
 
-- it contains exactly the expected number of canonical 15m observations: 8 / 32 / 288 respectively;
+- it contains exactly the expected number of canonical 15m observations for its wall-clock span: 2 / 4 / 8 / 16 / 32 / 48 / 96 / 288 for 30m / 1h / 2h / 4h / 8h / 12h / 1d / 72h respectively; weekly authority uses 672 expected 15m observations for a complete seven-day window;
 - every contributing 15m open timestamp lies on the UTC 15-minute grid;
 - the canonical 15m source itself passes duplicate, monotonicity, and OHLC-envelope integrity checks.
 
@@ -35,6 +35,7 @@ Otherwise the derived feature window is **QUARANTINED / INVALID**.
 
 For an invalid derived feature window:
 
+- that candle is excluded **before indicator computation**, so it cannot alter later indicator state indirectly;
 - no new signal/event is emitted from that timeframe;
 - the last already-confirmed state persists according to the frozen state-machine invariant;
 - no synthetic candle is created;
@@ -57,7 +58,7 @@ Strategy evaluation is blocked if any required source has:
 
 ### Canonical feature-eligibility gate
 
-The canonical 15m chain must successfully produce a deterministic validity mask for 2h/8h/72h windows. Invalid windows are permitted only because they are explicitly quarantined before strategy evaluation.
+The canonical 15m chain must successfully produce a deterministic validity mask for every Binance-derived strategy timeframe listed above. Invalid windows are permitted only because they are explicitly quarantined before indicator calculation and strategy evaluation.
 
 ### Native higher-timeframe parity diagnostic
 
