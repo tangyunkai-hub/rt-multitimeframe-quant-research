@@ -12,6 +12,9 @@ dependencies = ["pandas>=2.0", "numpy>=1.24"]
 [project.optional-dependencies]
 dev = ["pytest>=7"]
 
+[project.scripts]
+rtquant-paper = "rtquant.paper.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/tangyunkai-hub/rt-multitimeframe-quant-research"
 Repository = "https://github.com/tangyunkai-hub/rt-multitimeframe-quant-research"
