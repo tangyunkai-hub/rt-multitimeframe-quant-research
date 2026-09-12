@@ -1,0 +1,50 @@
+name: forward-native-data
+
+on:
+  workflow_dispatch:
+    inputs:
+      end_date:
+        description: 'Inclusive UTC source day YYYY-MM-DD; blank = yesterday UTC'
+        required: false
+        type: string
+  schedule:
+    - cron: '25 3 * * *'
+  push:
+    paths:
+      - 'tools/download_forward_native_data.py'
+      - '.github/workflows/forward-native-data.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pandas
+      - name: Collect checksum-verified post-freeze native data
+        shell: bash
+        run: |
+          ARGS=(--out forward_native_data)
+          if [ -n "${{ inputs.end_date }}" ]; then
+            ARGS+=(--end-date "${{ inputs.end_date }}")
+          fi
+          python tools/download_forward_native_data.py "${ARGS[@]}"
+      - name: Show data-only gate
+        if: always()
+        run: |
+          cat forward_native_data/DATA_GATE.json || true
+          cat forward_native_data/integrity.csv || true
+      - name: Upload forward data-only artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rt-forward-native-data
+          path: forward_native_data
+          retention-days: 30
+          compression-level: 6
