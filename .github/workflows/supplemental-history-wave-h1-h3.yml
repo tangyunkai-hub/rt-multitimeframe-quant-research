@@ -1,0 +1,42 @@
+name: supplemental-history-wave-h1-h3
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - step7-supplemental-history-wave-h1-h3-20260914
+    paths:
+      - 'tools/download_supplemental_historical_wave_h1_h3.py'
+      - 'research/step7_supplemental_historical_extension_freeze_2026-09-14.md'
+      - '.github/workflows/supplemental-history-wave-h1-h3.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  acquire-and-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install source-only dependencies
+        run: pip install pandas gdown
+      - name: Acquire frozen H1-H3 historical sources and run integrity gate
+        run: python tools/download_supplemental_historical_wave_h1_h3.py
+      - name: Print source gate and integrity audit
+        if: always()
+        run: |
+          cat supplemental_history_wave_h1_h3/SOURCE_GATE.json || true
+          cat supplemental_history_wave_h1_h3/source_integrity_audit.csv || true
+      - name: Upload source-only historical artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rt-supplemental-history-wave-h1-h3
+          path: supplemental_history_wave_h1_h3
+          retention-days: 14
+          compression-level: 6
