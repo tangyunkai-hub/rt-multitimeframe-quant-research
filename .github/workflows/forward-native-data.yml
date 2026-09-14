@@ -37,7 +37,9 @@ jobs:
       - name: Collect post-freeze Binance native data and Bitstamp state-only data
         shell: bash
         run: |
-          MODE="${{ inputs.mode }}"; [ -z "$MODE" ] && MODE=monitor
+          MODE="${{ inputs.mode }}"
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref_name }}" = "step7-full-intake-once-20260914" ]; then MODE=full; fi
+          [ -z "$MODE" ] && MODE=monitor
           ARGS=(--out forward_native_data --mode "$MODE")
           if [ -n "${{ inputs.end_date }}" ]; then ARGS+=(--end-date "${{ inputs.end_date }}"); fi
           python tools/download_forward_native_data.py "${ARGS[@]}"
