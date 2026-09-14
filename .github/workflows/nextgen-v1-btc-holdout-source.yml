@@ -1,0 +1,39 @@
+name: nextgen-v1-btc-holdout-source
+
+on:
+  push:
+    branches:
+      - nextgen-v1-btc-holdout-source-20260915
+    paths:
+      - 'tools/download_nextgen_v1_btc_holdout_source_only.py'
+      - '.github/workflows/nextgen-v1-btc-holdout-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  acquire-source-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependency
+        run: pip install pandas
+      - name: Acquire reserved Bitfinex BTC holdout source only
+        run: python tools/download_nextgen_v1_btc_holdout_source_only.py
+      - name: Print source gate only
+        run: |
+          cat nextgen_v1_btc_holdout_source/SOURCE_GATE.json
+          cat nextgen_v1_btc_holdout_source/source_integrity_audit.csv
+      - name: Remove plain CSV before upload
+        run: rm -f nextgen_v1_btc_holdout_source/tBTCUSD_15m_2017-08-17_2026-08-31.csv
+      - name: Upload source-only artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextgen-v1-btc-holdout-source-only
+          path: nextgen_v1_btc_holdout_source
+          retention-days: 30
