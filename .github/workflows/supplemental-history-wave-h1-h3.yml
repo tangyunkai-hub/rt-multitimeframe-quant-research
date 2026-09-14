@@ -7,6 +7,7 @@ on:
       - step7-supplemental-history-wave-h1-h3-20260914
     paths:
       - 'tools/download_supplemental_historical_wave_h1_h3.py'
+      - 'tools/run_supplemental_historical_wave_h1_h3_failsoft.py'
       - 'research/step7_supplemental_historical_extension_freeze_2026-09-14.md'
       - '.github/workflows/supplemental-history-wave-h1-h3.yml'
 
@@ -25,8 +26,8 @@ jobs:
           python-version: '3.12'
       - name: Install source-only dependencies
         run: pip install pandas gdown
-      - name: Acquire frozen H1-H3 historical sources and run integrity gate
-        run: python tools/download_supplemental_historical_wave_h1_h3.py
+      - name: Acquire frozen H1-H3 historical sources and preserve per-wave gate state
+        run: python tools/run_supplemental_historical_wave_h1_h3_failsoft.py
       - name: Print source gate and integrity audit
         if: always()
         run: |
