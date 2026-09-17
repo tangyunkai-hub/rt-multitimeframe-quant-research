@@ -13,8 +13,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Prepare artifact directory
+        run: mkdir -p artifacts/broad_cycle1
       - name: Run frozen Cycle-1
-        run: python research/broad_cycle1/run_cycle1.py | tee artifacts/broad_cycle1/stdout.json
+        run: python research/broad_cycle1/run_cycle1_wrapper.py | tee artifacts/broad_cycle1/stdout.json
       - name: Hash artifacts
         run: cd artifacts/broad_cycle1 && sha256sum * > SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
