@@ -1,31 +1,40 @@
 #!/usr/bin/env python3
-import csv, hashlib, io, json, urllib.parse, urllib.request
+from __future__ import annotations
+import csv, hashlib, io, json, urllib.request, urllib.error, zipfile, xml.etree.ElementTree as ET
+from datetime import date, timedelta
 from pathlib import Path
+
+ROOT='https://data.binance.vision/data/futures/um'
+START=date(2019,9,8); END=date(2026,9,15)
 OUT=Path('broad_discovery_cycle1'); OUT.mkdir(parents=True,exist_ok=True)
-URL='https://fapi.binance.com/fapi/v1/klines'; LO=1567900800000; HI=1789430400000; DAY=86400000
-rows=[]; start=LO; source=[]
-while start<=HI:
-    q=urllib.parse.urlencode({'symbol':'BTCUSDT','interval':'1d','startTime':start,'endTime':HI+DAY-1,'limit':1500})
-    u=URL+'?'+q
-    req=urllib.request.Request(u,headers={'User-Agent':'rt-quant-research/1.0'})
-    with urllib.request.urlopen(req,timeout=60) as r: blob=r.read()
-    batch=json.loads(blob)
-    if not batch: break
-    rows.extend(batch); source.append({'url':u,'rows':len(batch),'response_sha256':hashlib.sha256(blob).hexdigest()})
-    nxt=int(batch[-1][0])+DAY
-    if nxt<=start: raise SystemExit('pagination did not advance')
-    start=nxt
-rows=[r for r in rows if LO<=int(r[0])<=HI]; rows.sort(key=lambda r:int(r[0]))
-opens=[int(r[0]) for r in rows]
-if not opens or opens[0]!=LO or opens[-1]!=HI: raise SystemExit(f'coverage mismatch {opens[:1]}..{opens[-1:]}')
-if len(opens)!=len(set(opens)): raise SystemExit('duplicate openTime')
-if any(b-a!=DAY for a,b in zip(opens,opens[1:])): raise SystemExit('daily gap/nonmonotonic')
-for r in rows:
-    o,h,l,c=map(float,r[1:5])
-    if min(o,h,l,c)<=0 or h<max(o,c,l) or l>min(o,c,h): raise SystemExit(f'bad OHLC {r[:5]}')
-header=['open_time','open','high','low','close','volume','close_time','quote_volume','trades','taker_buy_base','taker_buy_quote','ignore']
-s=io.StringIO(); w=csv.writer(s,lineterminator='\n'); w.writerow(header); w.writerows(rows)
-data=s.getvalue().encode(); p=OUT/'btc_usdt_um_1d_2019-09-08_2026-09-15.csv'; p.write_bytes(data)
-summary={'status':'PASS','performance_evaluation_allowed':False,'source':'Binance USD-M public REST /fapi/v1/klines','rows':len(rows),'first_open_time':opens[0],'last_open_time':opens[-1],'duplicate_open_time':0,'daily_gap_count':0,'ohlc_invalid':0,'normalized_sha256':hashlib.sha256(data).hexdigest(),'requests':source}
-(OUT/'source_manifest.json').write_text(json.dumps(summary,indent=2,sort_keys=True)+'\n')
-print(json.dumps({k:v for k,v in summary.items() if k!='requests'},indent=2))
+def sha(b): return hashlib.sha256(b).hexdigest()
+def fetch(url):
+    req=urllib.request.Request(url,headers={'User-Agent':'rt-quant-research/1.0'})
+    with urllib.request.urlopen(req,timeout=60) as r: return r.read()
+def parse_zip(blob):
+    with zipfile.ZipFile(io.BytesIO(blob)) as z:
+        names=[n for n in z.namelist() if n.endswith('.csv')]
+        if len(names)!=1: raise SystemExit(f'unexpected zip members {names}')
+        rr=list(csv.reader(io.StringIO(z.read(names[0]).decode('utf-8'))))
+        if rr and rr[0] and not rr[0][0].isdigit(): rr=rr[1:]
+        return rr
+
+def list_keys(prefix):
+    # Binance Vision exposes an S3-style prefix listing at its public root.
+    url='https://data.binance.vision/?prefix='+urllib.parse.quote(prefix,safe='/')
+    blob=fetch(url); root=ET.fromstring(blob); keys=[]
+    for el in root.iter():
+        if el.tag.endswith('Key') and el.text: keys.append(el.text)
+    return sorted(keys)
+
+import urllib.parse
+prefix='data/futures/um/daily/klines/BTCUSDT/1d/'
+keys=list_keys(prefix)
+zips=[k for k in keys if k.endswith('.zip') and 'CHECKSUM' not in k]
+coverage={'status':'ARCHIVE_COVERAGE_PROBE','performance_evaluation_allowed':False,'prefix':prefix,'zip_count':len(zips),'first_zip':zips[0] if zips else None,'last_zip':zips[-1] if zips else None}
+(OUT/'archive_coverage_probe.json').write_text(json.dumps(coverage,indent=2,sort_keys=True)+'\n')
+print(json.dumps(coverage,indent=2))
+if not zips: raise SystemExit('official archive listing returned no daily BTCUSDT 1d zip keys')
+
+# This probe intentionally does not compute candidate performance. It establishes the exact official archive boundary
+# so the next frozen acquisition can combine only a provenance-hashed missing prefix (if any) with official archives.
