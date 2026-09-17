@@ -1,0 +1,42 @@
+name: broad-discovery-cycle1-data
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tools/download_broad_discovery_cycle1.py'
+      - '.github/workflows/broad-discovery-cycle1-data.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  freeze-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download, normalize and audit frozen consumed-development data
+        run: python tools/download_broad_discovery_cycle1.py
+      - name: Enforce pre-performance gate
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('broad_discovery_cycle1/source_manifest.json')
+          g=json.loads(p.read_text())
+          assert g['status']=='PASS'
+          assert g['performance_evaluation_allowed'] is False
+          assert g['duplicate_open_time']==0 and g['daily_gap_count']==0
+          print('Cycle-1 data freeze gate PASS', g['rows'], g['normalized_sha256'])
+          PY
+      - name: Upload immutable data checkpoint artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rt-broad-discovery-cycle1-data
+          path: broad_discovery_cycle1
+          retention-days: 30
+          compression-level: 6
