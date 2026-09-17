@@ -1,0 +1,24 @@
+name: broad-cycle1-data
+on:
+  push:
+    branches: [broad-cycle1-data-20260917]
+  workflow_dispatch:
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run frozen Cycle-1
+        run: python research/broad_cycle1/run_cycle1.py | tee artifacts/broad_cycle1/stdout.json
+      - name: Hash artifacts
+        run: cd artifacts/broad_cycle1 && sha256sum * > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: broad-cycle1-results
+          path: artifacts/broad_cycle1/
+          if-no-files-found: error
