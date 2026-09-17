@@ -16,7 +16,10 @@ jobs:
       - name: Prepare artifact directory
         run: mkdir -p artifacts/broad_cycle1
       - name: Run frozen Cycle-1
-        run: python research/broad_cycle1/run_cycle1_wrapper.py | tee artifacts/broad_cycle1/stdout.json
+        shell: bash
+        run: |
+          set -o pipefail
+          python research/broad_cycle1/run_cycle1_wrapper.py | tee artifacts/broad_cycle1/stdout.json
       - name: Hash artifacts
         run: cd artifacts/broad_cycle1 && sha256sum * > SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
