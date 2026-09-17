@@ -3,6 +3,7 @@ name: broad-discovery-cycle1-data
 on:
   workflow_dispatch:
   push:
+    branches: [broad-cycle1-data-20260917]
     paths:
       - 'tools/download_broad_discovery_cycle1.py'
       - '.github/workflows/broad-discovery-cycle1-data.yml'
