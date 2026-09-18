@@ -1,0 +1,32 @@
+name: cycle2-performance
+on:
+  push:
+    branches: [broad-cycle1-data-20260917]
+    paths:
+      - '.github/workflows/cycle2-performance.yml'
+permissions:
+  contents: write
+jobs:
+  run-frozen-cycle2:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: broad-cycle1-data-20260917
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify frozen runner SHA256
+        run: |
+          cd research/broad_cycle2
+          sha256sum -c run_cycle2_frozen.sha256
+          cd ../..
+      - name: Execute single retained Cycle-2 batch
+        run: python research/broad_cycle2/run_cycle2_frozen.py
+      - name: Commit retained outcomes
+        run: |
+          git config user.name 'rt-quant-research-bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add research/broad_cycle2/results
+          git commit -m 'Retain frozen Broad Discovery Cycle-2 outcomes'
+          git push origin HEAD:broad-cycle1-data-20260917
