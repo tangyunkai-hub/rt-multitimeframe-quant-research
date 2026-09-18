@@ -1,0 +1,29 @@
+name: cycle2-runner-refreeze
+on:
+  push:
+    branches: [broad-cycle1-data-20260917]
+    paths:
+      - 'research/broad_cycle2/run_cycle2_frozen.py'
+      - '.github/workflows/cycle2-runner-refreeze.yml'
+permissions:
+  contents: write
+jobs:
+  freeze:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: broad-cycle1-data-20260917
+      - name: Persist exact repaired runner SHA only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd research/broad_cycle2
+          sha256sum run_cycle2_frozen.py > run_cycle2_frozen.sha256
+          cd ../..
+          git config user.name 'rt-quant-research-bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add research/broad_cycle2/run_cycle2_frozen.sha256
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Re-freeze exact Cycle-2 runner SHA after engineering repair'
+          git push origin HEAD:broad-cycle1-data-20260917
