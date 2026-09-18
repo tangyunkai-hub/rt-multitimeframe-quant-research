@@ -3,11 +3,11 @@ on:
   push:
     branches: [broad-cycle1-data-20260917]
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   run:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -27,3 +27,21 @@ jobs:
           name: broad-cycle1-results
           path: artifacts/broad_cycle1/
           if-no-files-found: error
+  cycle2:
+    if: ${{ hashFiles('research/broad_cycle2/run_cycle2_frozen.sha256') != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify frozen Cycle-2 runner
+        run: cd research/broad_cycle2 && sha256sum -c run_cycle2_frozen.sha256
+      - name: Execute single retained Cycle-2 batch
+        run: python research/broad_cycle2/run_cycle2_frozen.py
+      - name: Commit retained Cycle-2 outcomes
+        run: |
+          git config user.name 'rt-quant-research-bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add research/broad_cycle2/results
+          if git diff --cached --quiet; then echo 'No new Cycle-2 outputs'; else git commit -m 'Retain frozen Broad Discovery Cycle-2 outcomes'; git push origin HEAD:broad-cycle1-data-20260917; fi
