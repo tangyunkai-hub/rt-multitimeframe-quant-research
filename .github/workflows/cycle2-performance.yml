@@ -31,3 +31,4 @@ jobs:
           git add research/broad_cycle2/results
           git commit -m 'Retain frozen Broad Discovery Cycle-2 outcomes'
           git push origin HEAD:broad-cycle1-data-20260917
+# Authorization marker: exact runner SHA frozen in prior commit 351c4ff; this edit triggers the single retained batch.
