@@ -28,7 +28,6 @@ jobs:
           path: artifacts/broad_cycle1/
           if-no-files-found: error
   cycle2:
-    if: ${{ hashFiles('research/broad_cycle2/run_cycle2_frozen.sha256') != '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
