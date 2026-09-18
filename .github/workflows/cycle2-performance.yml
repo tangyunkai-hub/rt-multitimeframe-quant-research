@@ -1,5 +1,6 @@
 name: cycle2-performance
 on:
+  workflow_dispatch:
   push:
     branches: [broad-cycle1-data-20260917]
     paths:
