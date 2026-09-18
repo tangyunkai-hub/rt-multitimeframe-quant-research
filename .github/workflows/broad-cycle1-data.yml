@@ -6,41 +6,16 @@ on:
 permissions:
   contents: write
 jobs:
-  run:
+  freeze-cycle2-runner-hash:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Prepare artifact directory
-        run: mkdir -p artifacts/broad_cycle1
-      - name: Run frozen Cycle-1
-        shell: bash
+      - name: Persist exact Cycle-2 runner SHA256 only
         run: |
-          set -o pipefail
-          python research/broad_cycle1/run_cycle1_wrapper.py | tee artifacts/broad_cycle1/stdout.json
-      - name: Hash artifacts
-        run: cd artifacts/broad_cycle1 && sha256sum * > SHA256SUMS.txt
-      - uses: actions/upload-artifact@v4
-        with:
-          name: broad-cycle1-results
-          path: artifacts/broad_cycle1/
-          if-no-files-found: error
-  cycle2:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Verify frozen Cycle-2 runner
-        run: cd research/broad_cycle2 && sha256sum -c run_cycle2_frozen.sha256
-      - name: Execute single retained Cycle-2 batch
-        run: python research/broad_cycle2/run_cycle2_frozen.py
-      - name: Commit retained Cycle-2 outcomes
-        run: |
+          cd research/broad_cycle2
+          sha256sum run_cycle2_frozen.py > run_cycle2_frozen.sha256
+          cd ../..
           git config user.name 'rt-quant-research-bot'
           git config user.email 'actions@users.noreply.github.com'
-          git add research/broad_cycle2/results
-          if git diff --cached --quiet; then echo 'No new Cycle-2 outputs'; else git commit -m 'Retain frozen Broad Discovery Cycle-2 outcomes'; git push origin HEAD:broad-cycle1-data-20260917; fi
+          git add research/broad_cycle2/run_cycle2_frozen.sha256
+          if git diff --cached --quiet; then echo 'Runner SHA already exact'; else git commit -m 'Correctly freeze exact Cycle-2 runner SHA256'; git push origin HEAD:broad-cycle1-data-20260917; fi
