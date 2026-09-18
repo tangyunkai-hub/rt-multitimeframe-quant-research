@@ -1,0 +1,26 @@
+name: broad-v1-pre2019
+on:
+  push:
+    branches: [broad-v1-pre2019-source-20260918]
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run frozen V1 batch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python research/broad_cycle1/run_v1_pre2019.py | tee v1_stdout.json
+      - name: Hash artifacts
+        run: |
+          sha256sum artifacts/broad_v1_pre2019/* > artifacts/broad_v1_pre2019/SHA256SUMS.txt
+          sha256sum research/broad_cycle1/V1_PRE2019_SOURCE_ADDENDUM_20260918.md research/broad_cycle1/run_v1_pre2019.py >> artifacts/broad_v1_pre2019/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: broad-v1-pre2019-results
+          path: |
+            artifacts/broad_v1_pre2019/
+            v1_stdout.json
+          if-no-files-found: error
