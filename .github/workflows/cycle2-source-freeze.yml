@@ -1,0 +1,36 @@
+name: cycle2-source-freeze
+on:
+  push:
+    paths:
+      - '.github/workflows/cycle2-source-freeze.yml'
+      - 'research/broad_cycle2/acquire_cycle2_source_only.py'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  freeze-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: broad-cycle1-data-20260917
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Acquire source-only payloads
+        run: python research/broad_cycle2/acquire_cycle2_source_only.py
+      - name: Inventory outputs
+        run: |
+          find research/broad_cycle2 -maxdepth 2 -type f -printf '%p %s bytes\n' | sort
+          git status --short
+      - name: Commit frozen source outputs
+        run: |
+          git config user.name 'rt-quant-research-bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add research/broad_cycle2
+          if git diff --cached --quiet; then
+            echo 'No new source outputs to commit'
+          else
+            git commit -m 'Freeze Cycle-2 source-only funding and premium payloads'
+            git push origin HEAD:broad-cycle1-data-20260917
+          fi
