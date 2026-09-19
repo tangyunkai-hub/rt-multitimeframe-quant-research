@@ -1,4 +1,4 @@
-# trigger-refresh: 2026-09-19T16:18+08:00
+# trigger-refresh: 2026-09-19T20:19+08:00
 name: kraken-v2b-source-freeze
 on:
   push:
@@ -35,13 +35,18 @@ jobs:
             rm -f "$f"
           done
           echo 'fc81b54cba6e12af3e9422dde9416179e6ef76af4831d48d839fbdb43018eaa4  Kraken_OHLCVT_Full_2026Q2.zip' | sha256sum -c -
-      - name: Locate and extract BTC/USD 1440m only
+      - name: Locate and extract historical XBT/USD 1440m only
         shell: bash
         run: |
           set -euo pipefail
           cd research/broad_cycle1/kraken_v2b_source
           unzip -Z1 Kraken_OHLCVT_Full_2026Q2.zip > archive_inventory.txt
-          match=$(grep -Ei '(^|/)(XBTUSD|BTCUSD)[^/]*_1440\.csv$' archive_inventory.txt | head -1 || true)
+          # Prefer Kraken's historical XBTUSD symbol. BTCUSD can be a newer alias/market
+          # and therefore may not cover the frozen 2019-2022 validation interval.
+          match=$(grep -Ei '(^|/)XBTUSD[^/]*_1440\.csv$' archive_inventory.txt | head -1 || true)
+          if [ -z "$match" ]; then
+            match=$(grep -Ei '(^|/)BTCUSD[^/]*_1440\.csv$' archive_inventory.txt | head -1 || true)
+          fi
           if [ -z "$match" ]; then
             echo 'No BTC/USD 1440m member found. Candidate names:'
             grep -Ei '(XBTUSD|BTCUSD).*1440' archive_inventory.txt | head -50 || true
@@ -68,9 +73,6 @@ jobs:
             for r in csv.reader(f):
               if len(r)<7: continue
               raw_ts=float(r[0])
-              # Kraken downloadable OHLCVT archives may encode Unix timestamps in
-              # seconds or higher-resolution integer units. Normalize only the
-              # timestamp unit mechanically; do not alter prices, bars, or gaps.
               if raw_ts >= 1e17:
                 ts=int(raw_ts/1e9); unit='ns'
               elif raw_ts >= 1e14:
@@ -84,7 +86,7 @@ jobs:
                 o,h,l,c=map(float,r[1:5])
                 if min(o,h,l,c)<=0 or h<max(o,l,c) or l>min(o,h,c): raise SystemExit('OHLC envelope failure')
                 rows.append((ts,r[1],r[2],r[3],r[4],r[5],r[6]))
-          if not rows: raise SystemExit(f'No frozen-overlap rows; observed_timestamp_units={sorted(observed_units)}')
+          if not rows: raise SystemExit(f'No frozen-overlap rows; observed_timestamp_units={sorted(observed_units)}; selected_member={(p/"selected_member.txt").read_text().strip()}')
           if len(observed_units)!=1: raise SystemExit(f'Mixed timestamp units: {sorted(observed_units)}')
           ts=[x[0] for x in rows]
           if len(ts)!=len(set(ts)) or ts!=sorted(ts): raise SystemExit('duplicate/nonmonotonic timestamps')
