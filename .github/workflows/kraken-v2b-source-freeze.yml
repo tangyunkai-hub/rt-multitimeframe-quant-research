@@ -1,4 +1,4 @@
-# trigger-refresh: 2026-09-19T20:19+08:00
+# trigger-refresh: 2026-09-19T22:21+08:00
 name: kraken-v2b-source-freeze
 on:
   push:
@@ -41,8 +41,6 @@ jobs:
           set -euo pipefail
           cd research/broad_cycle1/kraken_v2b_source
           unzip -Z1 Kraken_OHLCVT_Full_2026Q2.zip > archive_inventory.txt
-          # Prefer Kraken's historical XBTUSD symbol. BTCUSD can be a newer alias/market
-          # and therefore may not cover the frozen 2019-2022 validation interval.
           match=$(grep -Ei '(^|/)XBTUSD[^/]*_1440\.csv$' archive_inventory.txt | head -1 || true)
           if [ -z "$match" ]; then
             match=$(grep -Ei '(^|/)BTCUSD[^/]*_1440\.csv$' archive_inventory.txt | head -1 || true)
@@ -99,21 +97,7 @@ jobs:
           for a,b in zip(dates,dates[1:]):
             d=(b-a).days
             if d>1: gaps.append({'after':str(a),'before':str(b),'missing_days':d-1})
-          manifest={
-            'source':'Kraken official downloadable OHLCVT complete archive through 2026-06-30',
-            'source_url':'https://assets.kraken.com/marketing/institutions/Kraken_OHLCVT_Full_2026Q2.zip.part00..part04',
-            'assembled_archive_sha256':'fc81b54cba6e12af3e9422dde9416179e6ef76af4831d48d839fbdb43018eaa4',
-            'selected_member':(p/'selected_member.txt').read_text().strip(),
-            'source_timestamp_unit':next(iter(observed_units)),
-            'normalized_timestamp_unit':'unix_seconds',
-            'raw_member_sha256':sha(raw),
-            'normalized_sha256':sha(out),
-            'rows':len(rows),'unique_timestamps':len(set(ts)),
-            'first_utc':datetime.fromtimestamp(ts[0],timezone.utc).isoformat(),
-            'last_utc':datetime.fromtimestamp(ts[-1],timezone.utc).isoformat(),
-            'calendar_gaps':gaps,
-            'interpolation':False,'performance_computed':False
-          }
+          manifest={'source':'Kraken official downloadable OHLCVT complete archive through 2026-06-30','source_url':'https://assets.kraken.com/marketing/institutions/Kraken_OHLCVT_Full_2026Q2.zip.part00..part04','assembled_archive_sha256':'fc81b54cba6e12af3e9422dde9416179e6ef76af4831d48d839fbdb43018eaa4','selected_member':(p/'selected_member.txt').read_text().strip(),'source_timestamp_unit':next(iter(observed_units)),'normalized_timestamp_unit':'unix_seconds','raw_member_sha256':sha(raw),'normalized_sha256':sha(out),'rows':len(rows),'unique_timestamps':len(set(ts)),'first_utc':datetime.fromtimestamp(ts[0],timezone.utc).isoformat(),'last_utc':datetime.fromtimestamp(ts[-1],timezone.utc).isoformat(),'calendar_gaps':gaps,'interpolation':False,'performance_computed':False}
           (p/'kraken_v2b_source_manifest.json').write_text(json.dumps(manifest,indent=2,sort_keys=True)+'\n')
           print(json.dumps(manifest,indent=2))
           PY
