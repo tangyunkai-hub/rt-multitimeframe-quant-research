@@ -1,0 +1,4 @@
+SOURCE-ONLY execution trigger for the already-frozen Kraken V2b acquisition workflow.
+Timestamp context: 2026-09-19 14:22 CST automation continuation.
+This file changes no source mapping, candidate formula, runner, cost, scoring, or performance semantics. It exists only to trigger the branch push workflow after .github/workflows/kraken-v2b-source-freeze.yml was frozen at commit 217838faf63bf3a1f47034c443af5812a09e020c.
+No performance read is authorized by this trigger.
