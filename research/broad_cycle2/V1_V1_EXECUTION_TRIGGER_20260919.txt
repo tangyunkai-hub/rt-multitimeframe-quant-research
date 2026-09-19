@@ -1,0 +1,1 @@
+Frozen source binding and runner existed before this trigger commit. This commit authorizes the single retained V1-V1 performance read under the already-frozen protocol.
