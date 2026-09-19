@@ -1,0 +1,26 @@
+name: cycle2-v1-v1-bitstamp
+on:
+  push:
+    branches: [cycle2-v1-independent-validation-20260919]
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify frozen runner then execute single retained V1-V1 read
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '35caa926b3782600545a787950b4f7e796ae6e4fb10e63982af5eb13871df503  research/broad_cycle2/run_v1_v1_bitstamp.py' | sha256sum -c -
+          python research/broad_cycle2/run_v1_v1_bitstamp.py | tee v1_v1_stdout.json
+      - name: Hash retained artifacts
+        run: |
+          sha256sum artifacts/cycle2_v1_v1/* research/broad_cycle2/V1_V1_BITSTAMP_SOURCE_BINDING_20260919.md research/broad_cycle2/run_v1_v1_bitstamp.py > artifacts/cycle2_v1_v1/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cycle2-v1-v1-bitstamp-results
+          path: |
+            artifacts/cycle2_v1_v1/
+            v1_v1_stdout.json
+          if-no-files-found: error
